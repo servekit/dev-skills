@@ -1,0 +1,50 @@
+# Binaries — any nested bin/ (scaffold/bin/, <generated-service>/bin/, ...)
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test / coverage artifacts
+*.test
+*.out
+*.prof
+coverage.out
+coverage.html
+
+# Go workspace (per-project go.work files stay local)
+go.work
+go.work.sum
+
+# Config files often contain secrets
+config.yaml
+config.local.yaml
+*.local.yaml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs / temp
+*.log
+*.tmp
+
+# Buf
+.buf/
+
+# Build cache
+.cache/
+
+# Worktrees
+.worktrees/
+
+# Claude Code local state
+.claude

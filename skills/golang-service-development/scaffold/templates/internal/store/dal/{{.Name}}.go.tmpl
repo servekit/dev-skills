@@ -1,0 +1,92 @@
+// Package dal provides type-safe data-access functions over generated GORM
+// helpers. One file per table; cross-table composition lives in the service
+// layer (see gorm-cli-development skill §1).
+package dal
+
+import (
+	"context"
+
+	"gorm.io/gorm"
+
+	"{{.Module}}/internal/store/generated"
+	"{{.Module}}/internal/store/models"
+)
+
+// Create{{.Pascal}} inserts a new {{.Name}} record. d.ID is backfilled on success.
+//
+// dal functions accept *gorm.DB (which may be a transaction passed down from
+// the service layer); they NEVER open transactions themselves.
+func Create{{.Pascal}}(ctx context.Context, tx *gorm.DB, d *models.{{.Pascal}}) error {
+	return gorm.G[models.{{.Pascal}}](tx).Create(ctx, d)
+}
+
+// Get{{.Pascal}} returns the {{.Name}} with the given primary key, or gorm.ErrRecordNotFound.
+//
+// gorm.G[T].Take returns a value type T (not *T); we take its address so the
+// caller receives a pointer consistent with Create{{.Pascal}}'s input.
+func Get{{.Pascal}}(ctx context.Context, tx *gorm.DB, id int64) (*models.{{.Pascal}}, error) {
+	d, err := gorm.G[models.{{.Pascal}}](tx).
+		Where(generated.{{.Pascal}}.ID.Eq(id)).
+		Take(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
+// List{{.Pascal}}s returns up to limit {{.Plural}} ordered by ID descending, skipping
+// offset rows. Callers handle pagination tokens in the service layer.
+//
+// gorm.G[T].Find returns []T (not []*T); we convert to []*T to match the
+// pointer-style convention used elsewhere in the dal layer.
+func List{{.Pascal}}s(ctx context.Context, tx *gorm.DB, limit, offset int) ([]*models.{{.Pascal}}, error) {
+	{{.Plural}}, err := gorm.G[models.{{.Pascal}}](tx).
+		Order(generated.{{.Pascal}}.ID.Desc()).
+		Limit(limit).
+		Offset(offset).
+		Find(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*models.{{.Pascal}}, len({{.Plural}}))
+	for i := range {{.Plural}} {
+		out[i] = &{{.Plural}}[i]
+	}
+	return out, nil
+}
+
+// Update{{.Pascal}} sets name, description, and status atomically.
+//
+// TEMPLATE: This function is {{.Name}}-specific. When adapting this template to a
+// new service, either delete it or rewrite it to match your schema's updateable
+// fields. The pattern (Set expressions on generated field helpers) is what
+// matters — copy that, not the specific fields.
+//
+// Uses Set expressions (not struct Update) to avoid zero-value drop: passing
+// an empty description string still writes NULL/' to the column.
+//
+// status is the raw int32 of a proto enum value — the dal layer stays numeric
+// and never imports proto. The int32↔enum cast lives in the service layer
+// (never in pkg/handler, never in store). See golang-service-development
+// skill §6.
+func Update{{.Pascal}}(ctx context.Context, tx *gorm.DB, id int64, name, description string, status int32) error {
+	_, err := gorm.G[models.{{.Pascal}}](tx).
+		Where(generated.{{.Pascal}}.ID.Eq(id)).
+		Set(
+			generated.{{.Pascal}}.Name.Set(name),
+			generated.{{.Pascal}}.Description.Set(description),
+			generated.{{.Pascal}}.Status.Set(status),
+		).
+		Update(ctx)
+	return err
+}
+
+// Delete{{.Pascal}} soft-deletes the {{.Name}} (sets deleted_at; field type gorm.DeletedAt).
+//
+// Single-record dal convention: returns error only. See storage-service.DeleteFile.
+func Delete{{.Pascal}}(ctx context.Context, tx *gorm.DB, id int64) error {
+	_, err := gorm.G[models.{{.Pascal}}](tx).
+		Where(generated.{{.Pascal}}.ID.Eq(id)).
+		Delete(ctx)
+	return err
+}

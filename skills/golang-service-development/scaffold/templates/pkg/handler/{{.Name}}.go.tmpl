@@ -1,0 +1,81 @@
+// Package handler implements {{.Name}}.v1.{{.Pascal}}ServiceServer as a thin shim over
+// internal/service. Each method is a one-line delegation — service takes the
+// proto request directly (per project convention: avoid unnecessary struct
+// allocation; convert at the store boundary instead).
+//
+// Handlers hold NO business logic and NO conversion logic. Anything beyond
+// `return h.svc.X(ctx, req)` belongs in internal/service.
+//
+// Handler also implements signalx.Service (Start/Stop) by delegating to the
+// underlying Service. This lets in-process module users manage lifecycle
+// (background goroutines, owned resource cleanup) via the same object they
+// call RPC methods on — no separate service handle to track.
+//
+// If the service grows a second proto service (e.g., AdminService), add
+// admin.go alongside this file; the Handler struct gains a second set of
+// methods. Keep one file per proto service.
+package handler
+
+import (
+	"context"
+
+	{{.Name}}v1 "{{.Module}}/gen/{{.Name}}/v1"
+	"{{.Module}}/internal/service"
+
+	"google.golang.org/protobuf/types/known/emptypb"
+)
+
+// Handler implements {{.Name}}.v1.{{.Pascal}}ServiceServer.
+//
+// It holds no mutable state — the embedded *service.Service owns all
+// business state and lifecycle. Construction-time injection only.
+type Handler struct {
+	{{.Name}}v1.Unimplemented{{.Pascal}}ServiceServer
+
+	svc *service.Service
+}
+
+// New constructs a Handler wrapping svc.
+func New(svc *service.Service) *Handler {
+	return &Handler{svc: svc}
+}
+
+// Compile-time assertion: Handler implements the gRPC server interface.
+var _ {{.Name}}v1.{{.Pascal}}ServiceServer = (*Handler)(nil)
+
+// Start starts service-internal components (background goroutines for owned
+// resources like cron, message consumers, etc.). Safe to call from in-process
+// module users before invoking RPCs.
+func (h *Handler) Start() error { return h.svc.Start() }
+
+// Stop releases resources owned by the service (DB pool, gRPC client conns,
+// stops background goroutines). After Stop, the Handler must not be used.
+func (h *Handler) Stop() error { return h.svc.Stop() }
+
+// Create{{.Pascal}} delegates to service.Create{{.Pascal}}.
+func (h *Handler) Create{{.Pascal}}(ctx context.Context, req *{{.Name}}v1.Create{{.Pascal}}Request) (*{{.Name}}v1.{{.Pascal}}, error) {
+	return h.svc.Create{{.Pascal}}(ctx, req)
+}
+
+// Get{{.Pascal}} delegates to service.Get{{.Pascal}}.
+func (h *Handler) Get{{.Pascal}}(ctx context.Context, req *{{.Name}}v1.Get{{.Pascal}}Request) (*{{.Name}}v1.{{.Pascal}}, error) {
+	return h.svc.Get{{.Pascal}}(ctx, req.GetId())
+}
+
+// List{{.Pascal}}s delegates to service.List{{.Pascal}}s.
+func (h *Handler) List{{.Pascal}}s(ctx context.Context, req *{{.Name}}v1.List{{.Pascal}}sRequest) (*{{.Name}}v1.List{{.Pascal}}sResponse, error) {
+	return h.svc.List{{.Pascal}}s(ctx, int(req.GetPageSize()), req.GetPageToken())
+}
+
+// Update{{.Pascal}} delegates to service.Update{{.Pascal}}.
+func (h *Handler) Update{{.Pascal}}(ctx context.Context, req *{{.Name}}v1.Update{{.Pascal}}Request) (*{{.Name}}v1.{{.Pascal}}, error) {
+	return h.svc.Update{{.Pascal}}(ctx, req)
+}
+
+// Delete{{.Pascal}} delegates to service.Delete{{.Pascal}}.
+func (h *Handler) Delete{{.Pascal}}(ctx context.Context, req *{{.Name}}v1.Delete{{.Pascal}}Request) (*emptypb.Empty, error) {
+	if err := h.svc.Delete{{.Pascal}}(ctx, req.GetId()); err != nil {
+		return nil, err
+	}
+	return &emptypb.Empty{}, nil
+}

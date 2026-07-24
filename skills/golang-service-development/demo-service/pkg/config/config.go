@@ -1,0 +1,97 @@
+// Package config defines the demo-service configuration shape and loads it
+// via go-common's configx.
+//
+// serviceName and envPrefix are the two anchors external tooling (systemd
+// unit, Docker env, k8s configmap) must agree on with this binary.
+package config
+
+import (
+	"github.com/servekit/go-common/configx"
+	"github.com/servekit/go-common/dbx"
+	"github.com/servekit/go-common/logging"
+)
+
+// serviceName identifies this binary in config file lookup (/etc/<name>) and
+// the <NAME>_CONFIG env var. envPrefix scopes all env overrides under
+// DEMO_SERVICE_.
+const (
+	serviceName = "demo-service"
+	envPrefix   = "DEMO_SERVICE"
+)
+
+// Config holds all configuration for the demo service.
+//
+// Sub-config fields are pointers per golang-development skill §14: keeps
+// style consistent with the outer *Config return + functional options, and
+// avoids large-struct copies. Note: configx (viper) ALWAYS allocates nil
+// pointer fields during unmarshal, so cfg.X == nil is never true — express
+// "optional dependency" via an inner Enabled bool, not pointer nil-check.
+type Config struct {
+	Server     *ServerConfig
+	Database   *dbx.Config
+	ThirdParty *ThirdPartyConfig
+	Cron       *CronConfig
+	Log        *logging.Config
+}
+
+// ServerConfig holds gRPC and HTTP server addresses.
+type ServerConfig struct {
+	// GRPCAddr defaults to ":9000" — the team-wide standard for the gRPC port.
+	GRPCAddr string `default:":9000"`
+	// HTTPAddr defaults to ":8080" — the grpc-gateway port; empty disables HTTP.
+	HTTPAddr string `default:":8080"`
+}
+
+// CronConfig configures the internal cronx instance used by jobs.Scheduler.
+// Empty by default — jobs.Scheduler is wired but registers no jobs until
+// setupJobs adds them.
+type CronConfig struct {
+	// Timezone for cron expression evaluation. Defaults to Asia/Shanghai.
+	Timezone string `default:"Asia/Shanghai"`
+}
+
+// ThirdPartyConfig groups all third-party service settings.
+type ThirdPartyConfig struct {
+	Demo RemoteServiceConfig[DemoServiceConfig]
+}
+
+// RemoteServiceConfig holds connection settings for a service that can run
+// in-process (module) or as a remote gRPC deployment. T is the full config
+// used in module mode. Mode has no default — each constructor decides how to
+// treat an empty value (typically by picking one mode as the implicit
+// fallback). Adding a new third-party service is one line:
+//
+//	type ThirdPartyConfig struct {
+//	    Demo    RemoteServiceConfig[DemoServiceConfig]
+//	    Payment RemoteServiceConfig[PaymentConfig]   // new
+//	}
+type RemoteServiceConfig[T any] struct {
+	// Mode is "grpc" or "module". "module" is the dev default — no external dep.
+	Mode   string // "module" | "grpc"
+	Target string // gRPC addr, used when Mode == "grpc"
+	Config T      // in-process config, used when Mode == "module"
+}
+
+// DemoServiceConfig is the in-process config for DemoService. Placeholder
+// fields — replace with whatever your real third-party service needs.
+type DemoServiceConfig struct {
+	// Prefix is prepended to every DoDemo result (module mode only).
+	Prefix string `default:"[demo]"`
+	// MaxInputLen caps the length of DoDemo inputs.
+	MaxInputLen int `default:"1024"`
+}
+
+// Load reads config from the standard configx locations:
+//   - /etc/demo-service/config.yaml
+//   - ./config.yaml
+//   - $DEMO_SERVICE_CONFIG
+//
+// Env vars under $DEMO_SERVICE_ override file values; struct `default:` tags
+// apply last.
+func Load() (*Config, error) {
+	var cfg Config
+	if err := configx.Load(&cfg, configx.WithServiceName(serviceName), configx.WithEnvPrefix(envPrefix)); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}

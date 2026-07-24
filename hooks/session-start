@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# SessionStart hook for the dev-skills plugin.
+#
+# Injects the plugin's operating guide by reading
+# skills/using-dev-skills/SKILL.md (the rule + domain routing — the part a
+# human curates), then APPENDS an auto-generated inventory of every
+# skills/*/SKILL.md (name + description — the part that must never go stale).
+#
+# So: the curated routing lives in a maintainable Markdown skill (not bash), the
+# inventory stays auto-fresh, and adding/renaming a skill needs zero hook edits.
+#
+# Output: a single JSON object on stdout with
+#   hookSpecificOutput.additionalContext  (the Claude Code SessionStart contract).
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+SKILLS_DIR="${PLUGIN_ROOT}/skills"
+META_SKILL="${SKILLS_DIR}/using-dev-skills/SKILL.md"
+META_NAME="using-dev-skills"
+
+# 1. Read the curated guide body, stripping the YAML frontmatter.
+#    Only the first two `---` delimiters are treated as frontmatter, so any
+#    `---` horizontal rule in the body is preserved.
+read_guide() {
+  [ -f "$META_SKILL" ] || { echo "(ERROR: ${META_SKILL} not found)"; return; }
+  awk '/^---[ \t]*$/ && fm<2 { fm++; next } fm>=2 { print }' "$META_SKILL"
+}
+
+# 2. Auto-build the inventory from every skills/*/SKILL.md, excluding the
+#    meta-skill itself (it would otherwise list itself).
+build_index() {
+  local skill_md name desc
+  for skill_md in "$SKILLS_DIR"/*/SKILL.md; do
+    [ -f "$skill_md" ] || continue
+    name=$(awk '/^name:/{sub(/^name:[ \t]*/,""); print; exit}' "$skill_md")
+    [ -n "$name" ] || continue
+    [ "$name" = "$META_NAME" ] && continue
+    desc=$(awk '/^description:/{sub(/^description:[ \t]*/,""); print; exit}' "$skill_md" | sed 's/^"//; s/"$//')
+    [ -n "$desc" ] || desc="(no description)"
+    printf -- '- **%s**: %s\n' "$name" "$desc"
+  done
+}
+
+GUIDE="$(read_guide)"
+INDEX="$(build_index)"
+
+BODY="You have the **dev-skills** plugin installed. Below is its operating guide (the rule + domain routing), followed by the complete skill inventory. Both are auto-injected at session start.
+
+---
+
+${GUIDE}
+
+---
+
+## Complete skill inventory (auto-indexed from skills/*/SKILL.md)
+
+${INDEX}"
+
+# Escape an arbitrary string for safe embedding inside a JSON string value.
+escape_for_json() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\r'/\\r}"
+  s="${s//$'\t'/\\t}"
+  printf '%s' "$s"
+}
+
+CONTEXT="$(escape_for_json "$BODY")"
+
+# Claude Code SessionStart contract: nested additionalContext.
+printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$CONTEXT"
+
+exit 0

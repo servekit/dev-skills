@@ -1,0 +1,32 @@
+# Copy to config.yaml and edit. Real secrets come from env vars or a secret
+# manager — never commit production values.
+
+server:
+  grpc_addr: ":9000"
+  http_addr: ":8080"
+
+database:
+  host: localhost
+  port: 5432
+  user: postgres
+  password: postgres
+  dbname: {{.Name}}_service
+  sslmode: disable
+  max_open_conns: 25
+  max_idle_conns: 10
+  conn_max_lifetime: 5m
+
+third_party:
+  demo:
+    mode: module           # "grpc" for remote, "module" for in-process (default)
+    target: ""             # gRPC addr, e.g. "localhost:9000" when mode=grpc
+    config:                # in-process config when mode=module
+      prefix: "[demo]"
+      max_input_len: 1024
+
+cron:
+  timezone: "Asia/Shanghai"   # used by jobs.Scheduler; expressions evaluate in this TZ
+
+log:
+  level: info
+  format: json

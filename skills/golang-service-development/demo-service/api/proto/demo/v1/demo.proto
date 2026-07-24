@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+package demo.v1;
+
+option go_package = "demo-service/gen/demo/v1;demoservicev1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "buf/validate/validate.proto";
+
+// DemoStatus is the lifecycle state of a Demo record.
+//
+// Conventions (see golang-service-development skill §6):
+//   - Enums live in proto, not in Go source.
+//   - DB stores the underlying int32; cast via Go type assertion
+//     (demov1.DemoStatus(i) / int32(e)). proto also generates String(),
+//     DemoStatus_name, DemoStatus_value — do NOT write custom
+//     int↔enum / string↔enum helpers.
+enum DemoStatus {
+  DEMO_STATUS_UNSPECIFIED = 0;
+  DEMO_STATUS_ACTIVE = 1;
+  DEMO_STATUS_ARCHIVED = 2;
+}
+
+// Demo represents a single record in the demo service.
+message Demo {
+  int64 id = 1;
+  string name = 2;
+  string description = 3;
+  // Unix milliseconds.
+  int64 created_at = 4;
+  // Unix milliseconds.
+  int64 updated_at = 5;
+  DemoStatus status = 6;
+}
+
+message CreateDemoRequest {
+  string name = 1 [(buf.validate.field) = {string: {min_len: 1, max_len: 100}}];
+  string description = 2 [(buf.validate.field) = {string: {max_len: 500}}];
+  // defined_only rejects values outside the enum (e.g., 99). UNSPECIFIED (0)
+  // is allowed by the rule; service layer rejects it explicitly to require a
+  // concrete state at creation.
+  DemoStatus status = 3 [(buf.validate.field) = {enum: {defined_only: true}}];
+}
+
+message GetDemoRequest {
+  int64 id = 1 [(buf.validate.field) = {int64: {gt: 0}}];
+}
+
+message ListDemosRequest {
+  int32 page_size = 1 [(buf.validate.field) = {int32: {lte: 100, gte: 0}}];
+  // Exclusively-named cursor: optional opaque token returned by previous List.
+  string page_token = 2;
+}
+
+message ListDemosResponse {
+  repeated Demo demos = 1;
+  string next_page_token = 2;
+}
+
+message UpdateDemoRequest {
+  int64 id = 1 [(buf.validate.field) = {int64: {gt: 0}}];
+  string name = 2 [(buf.validate.field) = {string: {min_len: 1, max_len: 100}}];
+  string description = 3 [(buf.validate.field) = {string: {max_len: 500}}];
+  // defined_only rejects values outside the enum. UNSPECIFIED (0) is allowed
+  // by the rule; service layer rejects it explicitly.
+  DemoStatus status = 4 [(buf.validate.field) = {enum: {defined_only: true}}];
+}
+
+message DeleteDemoRequest {
+  int64 id = 1 [(buf.validate.field) = {int64: {gt: 0}}];
+}
+
+service DemoService {
+  rpc CreateDemo(CreateDemoRequest) returns (Demo) {
+    option (google.api.http) = {
+      post: "/v1/demos"
+      body: "*"
+    };
+  }
+
+  rpc GetDemo(GetDemoRequest) returns (Demo) {
+    option (google.api.http) = {get: "/v1/demos/{id}"};
+  }
+
+  rpc ListDemos(ListDemosRequest) returns (ListDemosResponse) {
+    option (google.api.http) = {get: "/v1/demos"};
+  }
+
+  rpc UpdateDemo(UpdateDemoRequest) returns (Demo) {
+    option (google.api.http) = {
+      put: "/v1/demos/{id}"
+      body: "*"
+    };
+  }
+
+  rpc DeleteDemo(DeleteDemoRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/v1/demos/{id}"};
+  }
+}

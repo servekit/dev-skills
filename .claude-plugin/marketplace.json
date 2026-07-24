@@ -1,0 +1,18 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "dev-skills",
+  "description": "dev-skills — domain development skills for Claude Code (Go, Rust, TypeScript, OPA, Protobuf + a go-common service toolchain).",
+  "owner": {
+    "name": "only"
+  },
+  "plugins": [
+    {
+      "name": "dev-skills",
+      "description": "Domain development skills (Go, Protobuf/Buf, GORM/cli, OPA/Rego, Rust, TypeScript, Docker packaging) auto-loaded as Claude Code Skills.",
+      "version": "0.1.0",
+      "source": ".",
+      "homepage": "https://github.com/servekit/dev-skills",
+      "category": "development"
+    }
+  ]
+}

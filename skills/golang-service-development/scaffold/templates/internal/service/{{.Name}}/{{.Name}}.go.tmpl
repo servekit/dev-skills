@@ -1,0 +1,172 @@
+// Package {{.Name}} contains the {{.Name}} domain business logic.
+//
+// Layering contract (see golang-service-development skill §2):
+//   - This is a SUBPACKAGE under internal/service/. {{.Pascal}} methods are
+//     NOT on the outer *service.Service; the outer service exposes them via
+//     one-line facade methods (see ../service.go).
+//   - Methods take proto types DIRECTLY (e.g., *{{.Name}}v1.Create{{.Pascal}}Request)
+//     and return proto types — no intermediate Go structs. Conversion to
+//     Go-native types happens at the store boundary (proto → models.{{.Pascal}}
+//     before dal call; models → proto via {{.Name}}ToProto before return).
+//   - Resources (db) are injected via New(); the subpackage does NOT
+//     hold a reference to the parent *service.Service (avoids import cycle).
+//   - The subpackage does NOT manage resource lifecycle — that's the parent
+//     service.Service's job via lifecycle.Manager.
+package {{.Name}}
+
+import (
+	"context"
+	"errors"
+	"strconv"
+
+	"gorm.io/gorm"
+
+	{{.Name}}v1 "{{.Module}}/gen/{{.Name}}/v1"
+	"{{.Module}}/internal/store/dal"
+	"{{.Module}}/internal/store/models"
+	"{{.Module}}/pkg/xcodes"
+)
+
+// Service is the {{.Name}} domain service. Resources are injected at
+// construction; the subpackage does not manage their lifecycle.
+type Service struct {
+	db *gorm.DB
+}
+
+// New constructs a {{.Pascal}} domain service with injected resources.
+func New(db *gorm.DB) *Service {
+	return &Service{db: db}
+}
+
+// Create{{.Pascal}} inserts a new {{.Name}} record.
+//
+// ID is auto-incremented by the database; GORM backfills record.ID after
+// insert. CreatedAt/UpdatedAt are backfilled by GORM on insert. Status is
+// the proto enum value, cast to int32 for storage.
+func (s *Service) Create{{.Pascal}}(ctx context.Context, req *{{.Name}}v1.Create{{.Pascal}}Request) (*{{.Name}}v1.{{.Pascal}}, error) {
+	record := &models.{{.Pascal}}{
+		Name:        req.GetName(),
+		Description: req.GetDescription(),
+		Status:      int32(req.GetStatus()),
+	}
+
+	if err := dal.Create{{.Pascal}}(ctx, s.db, record); err != nil {
+		return nil, xcodes.Err{{.Pascal}}Internal.Wrapf(err, "insert {{.Name}}")
+	}
+
+	return {{.Name}}ToProto(record), nil
+}
+
+// Get{{.Pascal}} returns a single {{.Name}} by ID.
+//
+// Returns xcodes.Err{{.Pascal}}NotFound (wrapped) when the record is missing;
+// xcodes.Err{{.Pascal}}Internal for any other failure.
+func (s *Service) Get{{.Pascal}}(ctx context.Context, id int64) (*{{.Name}}v1.{{.Pascal}}, error) {
+	record, err := dal.Get{{.Pascal}}(ctx, s.db, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, xcodes.Err{{.Pascal}}NotFound.Wrapf(err, "{{.Name}} id=%d", id)
+		}
+		return nil, xcodes.Err{{.Pascal}}Internal.Wrapf(err, "get {{.Name}} id=%d", id)
+	}
+	return {{.Name}}ToProto(record), nil
+}
+
+// DefaultPageSize bounds List when the caller doesn't pass a page size.
+const DefaultPageSize = 50
+
+// List{{.Pascal}}s returns up to pageSize {{.Plural}}, ordered by ID descending,
+// skipping offset rows.
+//
+// pageSize <= 0 or > 100 falls back to DefaultPageSize. pageToken is the
+// stringified offset returned by a previous call; pass "" for the first page.
+//
+// Note: OFFSET-based pagination is fine for {{.Name}} / low-cardinality tables.
+// For high-volume tables, switch to cursor-based (WHERE id > $last_id ORDER BY
+// id LIMIT N) in the dal layer.
+func (s *Service) List{{.Pascal}}s(ctx context.Context, pageSize int, pageToken string) (*{{.Name}}v1.List{{.Pascal}}sResponse, error) {
+	if pageSize <= 0 || pageSize > 100 {
+		pageSize = DefaultPageSize
+	}
+
+	offset := 0
+	if pageToken != "" {
+		if v, err := strconv.Atoi(pageToken); err == nil && v > 0 {
+			offset = v
+		}
+	}
+
+	// Fetch one extra to determine if a next page exists.
+	records, err := dal.List{{.Pascal}}s(ctx, s.db, pageSize+1, offset)
+	if err != nil {
+		return nil, xcodes.Err{{.Pascal}}Internal.Wrapf(err, "list {{.Plural}} offset=%d", offset)
+	}
+
+	hasNext := len(records) > pageSize
+	if hasNext {
+		records = records[:pageSize]
+	}
+
+	out := &{{.Name}}v1.List{{.Pascal}}sResponse{{"{"}}{{.Pascal}}s: make([]*{{.Name}}v1.{{.Pascal}}, 0, len(records))}
+	for _, r := range records {
+		out.{{.Pascal}}s = append(out.{{.Pascal}}s, {{.Name}}ToProto(r))
+	}
+	if hasNext {
+		out.NextPageToken = strconv.Itoa(offset + pageSize)
+	}
+	return out, nil
+}
+
+// Update{{.Pascal}} overwrites name, description, and status for the given ID.
+//
+// Returns xcodes.Err{{.Pascal}}NotFound when the record is missing. Update + re-read
+// pattern: dal's Update doesn't surface ErrRecordNotFound for zero-row
+// updates, so we re-read both to detect missing and to return current row.
+func (s *Service) Update{{.Pascal}}(ctx context.Context, req *{{.Name}}v1.Update{{.Pascal}}Request) (*{{.Name}}v1.{{.Pascal}}, error) {
+	id := req.GetId()
+	if err := dal.Update{{.Pascal}}(ctx, s.db, id, req.GetName(), req.GetDescription(), int32(req.GetStatus())); err != nil {
+		return nil, xcodes.Err{{.Pascal}}Internal.Wrapf(err, "update id=%d", id)
+	}
+
+	record, err := dal.Get{{.Pascal}}(ctx, s.db, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, xcodes.Err{{.Pascal}}NotFound.Wrapf(err, "{{.Name}} id=%d", id)
+		}
+		return nil, xcodes.Err{{.Pascal}}Internal.Wrapf(err, "re-read after update id=%d", id)
+	}
+
+	return {{.Name}}ToProto(record), nil
+}
+
+// Delete{{.Pascal}} soft-deletes the given {{.Name}} (sets deleted_at).
+//
+// Idempotent: deleting an already-soft-deleted {{.Name}} succeeds. Returns
+// xcodes.Err{{.Pascal}}Internal for any dal failure.
+func (s *Service) Delete{{.Pascal}}(ctx context.Context, id int64) error {
+	if err := dal.Delete{{.Pascal}}(ctx, s.db, id); err != nil {
+		return xcodes.Err{{.Pascal}}Internal.Wrapf(err, "delete {{.Name}} id=%d", id)
+	}
+	return nil
+}
+
+// {{.Name}}ToProto converts a DB record to its proto response. Centralized so all
+// CRUD methods produce identical timestamp encoding and enum cast.
+//
+// Enum conversion is a Go type cast on the proto-generated type
+// (type {{.Pascal}}Status int32). Do NOT write custom int↔enum / string↔enum
+// helpers — proto already generates String(), {{.Pascal}}Status_name and
+// {{.Pascal}}Status_value. See golang-service-development skill §6.
+func {{.Name}}ToProto(d *models.{{.Pascal}}) *{{.Name}}v1.{{.Pascal}} {
+	if d == nil {
+		return nil
+	}
+	return &{{.Name}}v1.{{.Pascal}}{
+		Id:          d.ID,
+		Name:        d.Name,
+		Description: d.Description,
+		Status:      {{.Name}}v1.{{.Pascal}}Status(d.Status),
+		CreatedAt:   d.CreatedAt.UnixMilli(),
+		UpdatedAt:   d.UpdatedAt.UnixMilli(),
+	}
+}

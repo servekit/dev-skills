@@ -1,0 +1,42 @@
+# demo-service
+
+参考实现：dev-skills 的 `golang-service-development` skill 自带的"金样本"。
+
+## 用途
+
+1. 给 skill 文档提供具体的、可运行的代码参照
+2. 给 `scripts/new-service.sh` 提供 token 替换的源
+
+不要直接在 `demo-service/` 目录下做业务开发——要新建服务时跑：
+
+```bash
+./skills/golang-service-development/scripts/new-service.sh <name>
+```
+
+会在 `../../<name>-service/` 生成新服务骨架。
+
+## 在 demo-service 目录内验证
+
+```bash
+cd skills/golang-service-development/demo-service
+make tidy
+make proto
+make generate
+make migrate     # 需要 PostgreSQL 跑着
+make run
+```
+
+gRPC server 监听 `:9000`，HTTP gateway 监听 `:8080`。
+
+## 测试调用
+
+```bash
+# gRPC
+grpcurl -plaintext -d '{"name":"hi","description":"world"}' \
+  localhost:9000 demo.v1.DemoService/CreateDemo
+
+# HTTP
+curl -X POST http://localhost:8080/v1/demos \
+  -H "Content-Type: application/json" \
+  -d '{"name":"hi","description":"world"}'
+```

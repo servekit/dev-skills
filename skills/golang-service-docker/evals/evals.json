@@ -1,0 +1,60 @@
+{
+  "skill_name": "golang-service-docker",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Dockerize this existing grpcx Go service. Its main package is ./cmd/server, gRPC listens on 9000, config.example.yaml is required at startup and contains ${DEMO_SERVICE_VENDOR_TOKEN} placeholders, and it has no database or Redis.",
+      "expected_output": "A source-based multi-stage image that copies the non-secret config template to /app/config.yaml, injects every referenced variable, uses a stable image tag, and emits validated Compose/Makefile output.",
+      "files": [],
+      "assertions": [
+        "Dockerfile uses a Go toolchain builder pinned to BUILDPLATFORM and compiles with CGO_ENABLED=0 for TARGETOS/TARGETARCH",
+        "The source build validates TARGETVARIANT, maps supported AMD64/ARM variants, and rejects platforms unavailable in the runtime/probe images",
+        "The source build uses read-only module mode and reproducible build flags",
+        "Compose has an explicit image repository and tag",
+        "The config template is copied to /app/config.yaml without a --config argument",
+        "Variables referenced by the config template are passed into the container and documented in .env.example",
+        "No postgres, mysql, or redis service is emitted",
+        "docker compose config succeeds"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Add Docker packaging to this grpcx Go service in a monorepo. go.mod replaces ../go-common, the service requires config.example.yaml with runtime environment placeholders, and it uses Postgres and Redis.",
+      "expected_output": "A build context containing the local replacement, one final Compose file where Postgres and Redis start normally, and health-gated startup targets.",
+      "files": [],
+      "assertions": [
+        "The selected Docker build context contains all local replace targets",
+        "The logical database name is an independent snake_case value rather than the kebab-case service name",
+        "Compose does not use include or a dormant Redis profile",
+        "The app depends on healthy Postgres and Redis services",
+        "Rerendering does not duplicate Makefile targets"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Package the existing bin/worker binary instead of compiling source. It is intended for a Linux Alpine container, automatically reads ./config.yaml, and should use a host-mounted config.docker.yaml containing environment placeholders. Generate MySQL Compose dependencies too.",
+      "expected_output": "A guarded prebuilt-mode scaffold that checks for a static Linux ELF, includes only bin/worker, mounts the requested config as /app/config.yaml without adding CLI flags, and preserves volumes on normal shutdown.",
+      "files": [],
+      "assertions": [
+        "Makefile rejects non-ELF and dynamically linked binaries",
+        ".dockerignore re-includes only bin/worker",
+        "The config file is mounted read-only without a --config argument",
+        "Variables referenced by the mounted config are passed into the container",
+        "docker-down preserves volumes while docker-reset removes them"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Dockerize this grpcx service whose gRPC server listens on 9000 and whose grpc-gateway exposes HTTP on 8080. Keep the standard gRPC health protocol as the container healthcheck, but make both transports reachable from the host.",
+      "expected_output": "A source-built image and Compose service that configure and expose both listener ports while continuing to run grpc_health_probe against port 9000.",
+      "files": [],
+      "assertions": [
+        "Dockerfile exposes both 9000 and 8080",
+        "Compose publishes independently overridable gRPC and HTTP host ports",
+        "The container receives matching SERVER_GRPC_ADDR and SERVER_HTTP_ADDR environment values",
+        "The healthcheck still uses grpc_health_probe against the gRPC port",
+        "No HTTP curl or weak TCP healthcheck replaces the gRPC health protocol"
+      ]
+    }
+  ]
+}
