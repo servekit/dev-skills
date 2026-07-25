@@ -18,7 +18,7 @@
 ### 数据库 / GORM
 - PostgreSQL（通过 `dbx.New`）
 - `internal/store/{models,generated,dal}` 遵循 `gorm-cli-development` skill
-- 迁移：`cmd/migrate/` + GORM AutoMigrate
+- 迁移：`cmd/server` 的 `migrate` 子命令 + GORM AutoMigrate（`go run ./cmd/server migrate`）
 
 ### 错误处理
 - 错误码在 `pkg/xcodes/{{.Name}}.go`，按域分文件

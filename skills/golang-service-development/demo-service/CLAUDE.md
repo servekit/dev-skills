@@ -6,7 +6,7 @@ Demo service — dev-skills 的 golang-service-development skill 自带的参考
 完整跑通 grpc-gateway 服务三层结构（handler / service / store）、thirdcall、option、生命周期。
 
 **这是 skill 的"golden sample"**：脚本 `./scripts/new-service.sh <name>` 拷贝此目录生成新服务。
-修改任何结构请同步更新 `skills/golang-service-development/SKILL.md`。
+修改任何结构请同步更新 `skills/golang-service-development/golang-service-development.md`。
 
 ## 技术栈约定
 
@@ -18,7 +18,7 @@ Demo service — dev-skills 的 golang-service-development skill 自带的参考
 ### 数据库 / GORM
 - PostgreSQL（通过 `dbx.New`）
 - `internal/store/{models,generated,dal}` 遵循 `gorm-cli-development` skill
-- 迁移：`cmd/migrate/` + GORM AutoMigrate
+- 迁移：`cmd/server` 的 `migrate` 子命令 + GORM AutoMigrate（`go run ./cmd/server migrate`）
 
 ### 错误处理
 - 错误码在 `pkg/xcodes/demo.go`，按域分文件

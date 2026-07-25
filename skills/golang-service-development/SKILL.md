@@ -32,8 +32,7 @@ description: MUST use when creating, scaffolding, or architecting a new Go micro
 ├── api/proto/{svc}/v1/         # proto 定义（路径 = package 路径）
 ├── bin/                        # 编译产物（gitignore）
 ├── cmd/
-│   ├── migrate/                # 数据库迁移入口
-│   └── server/                 # 服务入口
+│   └── server/                 # 服务入口：serve（默认）+ migrate 子命令（单二进制）
 ├── gen/                        # buf 生成产物（committed）
 ├── internal/                   # 业务实现，外部不可 import
 │   ├── provider/               # 辅助业务：mqtt/kafka/jobs 等
@@ -279,45 +278,69 @@ handler **永远只调** `service.go` 这一层的方法。不 import `internal/
 
 ## 3. 启动三件套
 
-### cmd/server/main.go（服务入口）
+### cmd/server/main.go（服务 + 迁移入口，单二进制）
 
-固定模板：
+服务启动和数据库迁移合并到同一个二进制 `cmd/server`，通过子命令区分：
+
+- 无参 / `serve` —— 启动 gRPC + HTTP 服务（默认）
+- `migrate` —— 跑 GORM AutoMigrate 后退出
+- 其他 —— 打印用法，exit 2
+
+`main.go` 只做 dispatch，真正的启动/迁移逻辑在 `runServer` / `runMigrate`（迁移逻辑放 `cmd/server/migrate.go`，只依赖 DB，不碰 Redis/gRPC）。两者都返回 error、由 `main` 统一 `os.Exit`——revive `deep-exit` 要求 `os.Exit` 只能在 `main`：
 
 ```go
+// cmd/server/main.go
 func main() {
-    cfg, err := config.Load()
-    if err != nil { slog.Error("load config", "error", err); os.Exit(1) }
-    logging.Setup(&cfg.Log)
+    switch subcommand() {
+    case "", "serve":
+        if err := runServer(); err != nil {
+            slog.Error("serve failed", "error", err)
+            os.Exit(1)
+        }
+    case "migrate":
+        if err := runMigrate(); err != nil {
+            slog.Error("migrate failed", "error", err)
+            os.Exit(1)
+        }
+    default:
+        fmt.Fprintf(os.Stderr, "usage: %s [serve|migrate]\n", os.Args[0])
+        os.Exit(2)
+    }
+}
 
+func runServer() error {
+    cfg, err := config.Load()
+    if err != nil { return fmt.Errorf("load config: %w", err) }
+    logging.Setup(cfg.Log)
     srv, err := pkg.NewServer(cfg)
-    if err != nil { slog.Error("init server", "error", err); os.Exit(1) }
-
+    if err != nil { return fmt.Errorf("init server: %w", err) }
     if err := signalx.RunWithForceQuit(srv); err != nil {
-        slog.Error("run server", "error", err); os.Exit(1)
+        return fmt.Errorf("run server: %w", err)
     }
+    return nil
 }
-```
 
-`signalx.RunWithForceQuit` 处理 SIGTERM 优雅停机 + SIGINT 强制退出。
-
-### cmd/migrate/main.go（迁移入口）
-
-```go
-func main() {
+// cmd/server/migrate.go
+func runMigrate() error {
     cfg, err := config.Load()
-    if err != nil { ...; os.Exit(1) }
-    logging.Setup(&cfg.Log)
+    if err != nil { return fmt.Errorf("load config: %w", err) }
+    logging.Setup(cfg.Log)
+    db, err := dbx.New(cfg.Database)
+    if err != nil { return fmt.Errorf("init database: %w", err) }
+    return runMigration(db)
+}
 
-    db, err := dbx.New(&cfg.Database)
-    if err != nil { ...; os.Exit(1) }
-
+func runMigration(db *gorm.DB) error {
     if err := dbx.AutoMigrate(db, models.AllModels()...); err != nil {
-        slog.Error("migrate", "error", err); os.Exit(1)
+        return fmt.Errorf("auto-migrate: %w", err)
     }
+    return nil
 }
 ```
 
-**注意**：只做加法（建表、加字段、加索引）。删字段/删表写独立脚本。
+`signalx.RunWithForceQuit` 处理 SIGTERM 优雅停机 + SIGINT 强制退出。迁移**与发版解耦**——部署时先单独跑 `./<svc> migrate`（或 `make migrate`），再启动服务；Docker 镜像 ENTRYPOINT 即该二进制，`docker run <img> migrate` 直接跑迁移。
+
+**注意**：AutoMigrate 只做加法（建表、加字段、加索引）。删字段/删表写独立脚本。
 
 ### pkg/server.go（gRPC + HTTP server）
 

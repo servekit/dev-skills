@@ -1,12 +1,18 @@
 .PHONY: all build run test lint fmt vet generate proto migrate tidy regenerate
 
-## build: Build the server binary
+# Published binary name. Override to ship under a different name without
+# touching the source tree, e.g. `make build BIN_NAME=msgsvc`.
+# The Go package path stays cmd/server regardless.
+BIN_NAME := demo-service
+CMD_DIR  := cmd/server
+
+## build: Build the $(BIN_NAME) binary (server + migrate in one)
 build:
-	go build -o bin/server ./cmd/server/
+	go build -o bin/$(BIN_NAME) ./$(CMD_DIR)/
 
 ## run: Run the server locally
 run:
-	go run ./cmd/server/
+	go run ./$(CMD_DIR)/
 
 ## test: Run tests with race detector
 test:
@@ -33,9 +39,9 @@ generate:
 proto:
 	buf generate
 
-## migrate: Run GORM AutoMigrate
+## migrate: Run database migrations (AutoMigrate) via the unified binary
 migrate:
-	go run ./cmd/migrate/
+	go run ./$(CMD_DIR) migrate
 
 ## tidy: Run go mod tidy
 tidy:

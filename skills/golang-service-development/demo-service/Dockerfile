@@ -10,10 +10,14 @@ RUN go mod download
 COPY . .
 
 # Build statically; CGO disabled to keep image small.
-RUN CGO_ENABLED=0 go build -ldflags='-s -w' -o /out/server ./cmd/server/
+RUN CGO_ENABLED=0 go build -ldflags='-s -w' -o /out/demo-service ./cmd/server/
 
 FROM gcr.io/distroless/static-debian12:nonroot
-COPY --from=builder /out/server /server
+COPY --from=builder /out/demo-service /demo-service
 USER nonroot:nonroot
 EXPOSE 9000 8080
-ENTRYPOINT ["/server"]
+
+# Args pass through to the binary:
+#   docker run <image>            -> start the server
+#   docker run <image> migrate    -> run migrations
+ENTRYPOINT ["/demo-service"]
