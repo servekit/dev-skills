@@ -133,15 +133,15 @@ Database and Redis host ports remain configurable for local development. Interna
 
 No mode emits `--config`. grpcx/configx services normally discover `./config.yaml`; with `WORKDIR /app`, `/app/config.yaml` is already at the expected location.
 
-Copying the template is safe only when it contains structure, defaults, and `${VAR}` placeholders rather than real secrets. The application expands those placeholders from its process environment during startup. Secrets remain in `.env`, CI, or the deployment secret manager and never enter image layers.
+The template is structure-only: every value is a `${VAR}` placeholder, never a literal default. This keeps a single source of truth for values (`.env.example` / the runtime env) and makes every field env-overridable. configx expands those placeholders from the process environment at startup **only when the service's `config.Load` passes `configx.WithExpandEnv()`** — the renderer assumes this is enabled (the scaffold turns it on). Without it, `${VAR}` stays literal and the injected env never reaches the config struct. Secrets remain in `.env`, CI, or the deployment secret manager and never enter image layers.
 
-Compose's project `.env` file supplies interpolation values but does not automatically pass every value into the container. The renderer therefore scans the config template for `${VAR}` tokens, emits corresponding app `environment` entries, and adds the variables to `.env.example`. Known log/database/Redis variables remain in their explicit sections so local dependency defaults continue to work.
+Compose's project `.env` file supplies interpolation values but does not automatically pass every value into the container. The renderer therefore scans the config template for `${VAR}` tokens and emits corresponding app `environment` entries. When the service ships a `.env.example` (the scaffold always does), the renderer reads each variable's default from it and emits `KEY=${KEY:-default}` so `docker compose up` works even before an operator copies `.env.example` to `.env`. Known log/database/Redis variables remain in their explicit sections with docker-topology defaults (e.g. `DATABASE_HOST=postgres`, the compose service name) so local dependency defaults continue to work.
 
 ## Environment defaults
 
-Compose uses `${VAR:-default}` for local-development defaults. Compose automatically reads a local `.env` file when present but does not require one, so a new contributor can run the stack without copying `.env.example` first.
+Compose uses `${VAR:-default}` for local-development defaults. For variables discovered in the config template, the renderer reads each default from the service's `.env.example` and inlines it, so `docker compose up` works even before an operator copies `.env.example` to `.env`. Compose also reads a local `.env` file when present, which overrides the inline defaults.
 
-`.env.example` documents only stable image settings and values that operators commonly override. Database passwords use obvious non-production placeholders. Real secrets must come from an ignored `.env`, CI secret store, or deployment secret manager.
+`.env.example` is service-owned: the `golang-service-development` scaffold generates it with docker-compose-oriented app-env defaults (hostnames are compose service names). The renderer reads it and leaves it intact — it never regenerates or clobbers a service-owned `.env.example`. It generates one from the template only when the file is absent (standalone use on a non-scaffolded service). Real secrets must come from an ignored `.env`, CI secret store, or deployment secret manager.
 
 Application environment names use the actual configured prefix gathered from the source repository. Deriving a prefix from the service name is only a fallback; it must not override a different config contract.
 

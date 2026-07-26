@@ -23,9 +23,14 @@ ARG TARGETPLATFORM
 ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT
+# Go module proxy. Default is Go's standard public proxy; override with
+# --build-arg GOPROXY=https://goproxy.cn,direct (or the GOPROXY env var, which
+# compose build.args wires through) when proxy.golang.org is unreachable.
+ARG GOPROXY=https://proxy.golang.org,direct
 
 WORKDIR /src
 ENV GOTOOLCHAIN=local
+ENV GOPROXY=$GOPROXY
 
 # Bind the build context read-only so standalone modules and monorepos with
 # local replace directives use the same build. Module and compiler caches stay

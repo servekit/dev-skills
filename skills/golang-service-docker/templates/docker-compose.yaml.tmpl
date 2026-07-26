@@ -7,6 +7,10 @@ services:
     build:
       context: "{{BUILD_CONTEXT}}"
       dockerfile: "{{DOCKERFILE_PATH}}"
+      # Override GOPROXY in .env (e.g. GOPROXY=https://goproxy.cn,direct) when
+      # proxy.golang.org is unreachable from the build host.
+      args:
+        GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
     environment:
       - {{ENV_PREFIX}}_SERVER_GRPC_ADDR=${{{ENV_PREFIX}}_SERVER_GRPC_ADDR:-:{{EXPOSE_PORT}}}
       # --- IF gateway ---

@@ -251,6 +251,19 @@ if [[ "$scaffold_config_mode" != none ]]; then
     | sed 's/^${//' | LC_ALL=C sort -u || true)
 fi
 
+# env_default echoes the value of $1 from the target's existing .env.example,
+# or empty when the file or key is absent. The service owns .env.example
+# (scaffold-generated, docker-compose oriented); the renderer reads it to seed
+# compose ${VAR:-default} inline defaults so docker compose up works even
+# before the operator copies .env.example to .env.
+env_default() {
+  local scaffold_env_file="${scaffold_target_abs}/.env.example"
+  [[ -f "$scaffold_env_file" ]] || return 0
+  local scaffold_env_line
+  scaffold_env_line="$(grep -E "^${1}=" "$scaffold_env_file" 2>/dev/null | head -n1 || true)"
+  printf '%s' "${scaffold_env_line#"${1}="}"
+}
+
 condition_enabled() {
   case "$1" in
     source) [[ "$scaffold_build_mode" == source ]] ;;
@@ -302,7 +315,9 @@ render_template() {
     if [[ "$scaffold_trimmed" == '{{CONFIG_ENVIRONMENT_LINES}}' ]]; then
       for scaffold_config_env_name in "${scaffold_config_env_names[@]}"; do
         [[ -n "$scaffold_config_env_name" ]] || continue
-        printf '      - %s=${%s:-}\n' "$scaffold_config_env_name" "$scaffold_config_env_name" >> "$scaffold_tmp"
+        printf '      - %s=${%s:-%s}\n' \
+          "$scaffold_config_env_name" "$scaffold_config_env_name" \
+          "$(env_default "$scaffold_config_env_name")" >> "$scaffold_tmp"
       done
       continue
     fi
@@ -353,10 +368,14 @@ for scaffold_managed_path in \
   "${scaffold_target_abs}/Dockerfile" \
   "${scaffold_target_abs}/Dockerfile.dockerignore" \
   "${scaffold_target_abs}/.dockerignore" \
-  "${scaffold_target_abs}/docker-compose.yaml" \
-  "${scaffold_target_abs}/.env.example"; do
+  "${scaffold_target_abs}/docker-compose.yaml"; do
   managed_or_absent "$scaffold_managed_path"
 done
+
+# .env.example is service-owned (scaffold-generated, app env + defaults). When
+# present, read it via env_default for compose inline defaults and leave it
+# intact — never clobber the service's env contract. Generate from the template
+# only when absent (standalone docker skill use on a non-scaffolded service).
 
 if [[ "$scaffold_build_mode" == source ]]; then
   scaffold_dockerfile_template="${scaffold_template_dir}/Dockerfile.tmpl"
@@ -368,7 +387,12 @@ render_template "$scaffold_dockerfile_template" "${scaffold_target_abs}/Dockerfi
 render_template "${scaffold_template_dir}/.dockerignore.tmpl" "${scaffold_target_abs}/Dockerfile.dockerignore"
 render_template "${scaffold_template_dir}/.dockerignore.tmpl" "${scaffold_target_abs}/.dockerignore" ""
 render_template "${scaffold_template_dir}/docker-compose.yaml.tmpl" "${scaffold_target_abs}/docker-compose.yaml"
-render_template "${scaffold_template_dir}/.env.example.tmpl" "${scaffold_target_abs}/.env.example"
+if [[ ! -f "${scaffold_target_abs}/.env.example" ]]; then
+  managed_or_absent "${scaffold_target_abs}/.env.example"
+  render_template "${scaffold_template_dir}/.env.example.tmpl" "${scaffold_target_abs}/.env.example"
+else
+  printf 'service-docker-scaffold: read existing .env.example for compose defaults (not regenerated)\n' >&2
+fi
 
 scaffold_make_block="$(mktemp "${scaffold_target_abs}/.service-docker-scaffold.make.XXXXXX")"
 render_template "${scaffold_template_dir}/Makefile.targets.tmpl" "$scaffold_make_block"

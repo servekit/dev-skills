@@ -7,7 +7,7 @@ TARGET_PLATFORM ?=
 DOCKER_PLATFORM_ENV = $(if $(strip $(TARGET_PLATFORM)),DOCKER_DEFAULT_PLATFORM=$(TARGET_PLATFORM))
 DOCKER_COMPOSE := $(DOCKER_PLATFORM_ENV) IMAGE_REPOSITORY=$(IMAGE_REPOSITORY) IMAGE_TAG=$(IMAGE_TAG) docker compose
 
-.PHONY: docker-build docker-push docker-up docker-down docker-reset docker-logs docker-health
+.PHONY: docker-build docker-push docker-up docker-migrate docker-down docker-reset docker-logs docker-health
 
 ## docker-build: Build the host platform, or pass TARGET_PLATFORM=linux/amd64
 docker-build:
@@ -25,6 +25,10 @@ docker-push: docker-build
 ## docker-up: Build and start the selected stack, then wait for healthchecks
 docker-up: docker-build
 	$(DOCKER_COMPOSE) up --wait --no-build -d
+
+## docker-migrate: One-shot migration against the compose DB (builds, starts deps, runs migrate, exits)
+docker-migrate: docker-build
+	$(DOCKER_COMPOSE) run --rm {{SERVICE_NAME}} migrate
 
 ## docker-down: Stop containers while preserving named volumes
 docker-down:

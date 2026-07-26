@@ -15,7 +15,7 @@ This skill generates:
 - `Dockerfile.dockerignore` and `.dockerignore` files aligned with the selected build mode;
 - one final `docker-compose.yaml`, with optional postgres, mysql, and redis services rendered inline;
 - a required non-secret config template at `/app/config.yaml` by default, plus runtime environment injection for every `${VAR}` placeholder it references;
-- `.env.example` containing image, port, healthcheck, discovered config variables, and dependency overrides;
+- `.env.example` — read from the service when present (it owns app-env defaults and the renderer only adds compose inline defaults from it); generated with image, port, healthcheck, discovered config variables, and dependency overrides only when absent;
 - idempotent Makefile targets for build, push, up, down, reset, logs, and health checks.
 
 The generated image contains `grpc_health_probe` and checks the standard `grpc.health.v1.Health` endpoint registered by `go-common/grpcx`. A grpc-gateway service keeps this gRPC healthcheck and additionally exposes its HTTP listener.
@@ -87,6 +87,10 @@ The grpcx/configx service shape requires a config file. Choose one strategy expl
 
 The renderer scans the selected YAML file for `${VAR}` references, adds non-dependency variables to the app's Compose `environment`, and lists them in `.env.example`. Database, Redis, and log variables keep their explicit safe defaults and are not duplicated. Compose `.env` is only an interpolation source, so these generated `environment` entries are what actually pass values into the container.
 
+**`WithExpandEnv` contract.** configx only expands `${VAR}` placeholders when the service's `config.Load` passes `configx.WithExpandEnv()`. The renderer assumes this is set (the `golang-service-development` scaffold enables it); without it, `${VAR}` stays literal and the injected env never reaches the config struct.
+
+**`.env.example` ownership.** When the target already has a `.env.example` (the normal case for scaffolded services), the renderer **reads** it for the compose `${VAR:-default}` inline defaults and leaves the file intact — it never clobbers the service's env contract. It generates a `.env.example` from the template only when the file is absent (standalone use on a non-scaffolded service).
+
 Do not add a `--config` argument. `configx` discovers `/app/config.yaml` through its normal `./config.yaml` lookup and expands the placeholders from the container environment at startup.
 
 ## Render workflow
@@ -145,10 +149,13 @@ The managed Makefile block provides:
 - `make docker-build` — build the stable `${IMAGE_REPOSITORY}:${IMAGE_TAG}` image for the host platform, or pass `TARGET_PLATFORM=linux/amd64`;
 - `make docker-push` — push that tag;
 - `make docker-up` — build, start, and wait for healthy services;
+- `make docker-migrate` — one-shot migration: builds, starts dependencies, runs `migrate` in a throwaway container, then exits (production-style run-to-completion; does not touch the serving stack);
 - `make docker-down` — stop containers while preserving volumes;
 - `make docker-reset` — stop containers and deliberately delete volumes;
 - `make docker-logs [svc=name]` — follow logs;
 - `make docker-health` — run the bundled probe inside the app container.
+
+**Go module proxy.** The builder resolves modules through `GOPROXY` (default `https://proxy.golang.org,direct`, wired via a Dockerfile `ARG` and compose `build.args`). On networks where `proxy.golang.org` is blocked, set `GOPROXY=https://goproxy.cn,direct` in `.env` (or export it) before `make docker-build`.
 
 Redis is not profile-gated. If the user selects Redis, `make docker-up` starts it and waits for its healthcheck. If Redis is optional, omit it during rendering and enable it in a later rerender when needed.
 

@@ -271,6 +271,23 @@ if bash "$renderer" \
 fi
 assert_contains "${unmanaged_fixture}/Dockerfile" 'FROM scratch'
 
+# A pre-existing, service-owned .env.example (as the golang-service-development
+# scaffold emits) must be read for compose inline defaults and left intact —
+# never regenerated or clobbered.
+owned_env_fixture="$(new_fixture owned-env-service)"
+printf '# service-owned env template; do not clobber\nEXTERNAL_API_TOKEN=scaffold-default-token\nPAYMENTSVC_ONLY_VAR=kept\n' > "${owned_env_fixture}/.env.example"
+owned_env_before="$(cksum "${owned_env_fixture}/.env.example")"
+bash "$renderer" \
+  --target "$owned_env_fixture" \
+  --service-name owned-env-service \
+  --binary-name server \
+  --env-prefix OWNED_ENV_SERVICE >/dev/null
+owned_env_after="$(cksum "${owned_env_fixture}/.env.example")"
+[[ "$owned_env_before" == "$owned_env_after" ]] || fail 'renderer clobbered a service-owned .env.example'
+assert_contains "${owned_env_fixture}/.env.example" 'service-owned env template; do not clobber'
+assert_contains "${owned_env_fixture}/.env.example" 'PAYMENTSVC_ONLY_VAR=kept'
+assert_contains "${owned_env_fixture}/docker-compose.yaml" 'EXTERNAL_API_TOKEN=${EXTERNAL_API_TOKEN:-scaffold-default-token}'
+
 if [[ "${SERVICE_DOCKER_SCAFFOLD_BUILD_TEST:-0}" == 1 ]]; then
   if [[ -n "${SERVICE_DOCKER_SCAFFOLD_TARGET_PLATFORM:-}" ]]; then
     make -C "$solo_fixture" \
