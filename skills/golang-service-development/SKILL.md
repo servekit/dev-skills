@@ -56,8 +56,9 @@ description: MUST use when creating, scaffolding, or architecting a new Go micro
 │   ├── module.go               # in-process 入口
 │   └── server.go               # gRPC + gateway server
 ├── buf.yaml / buf.gen.yaml     # buf v2 配置
-├── Makefile / Dockerfile / .golangci.yml / CLAUDE.md / README.md
-├── config.example.yaml
+├── Makefile / Dockerfile / docker-compose.yaml / .golangci.yml / CLAUDE.md / README.md
+├── config.example.yaml         # 纯结构，值全 ${VAR}（由 configx WithExpandEnv 展开）
+├── .env.example                # docker 取向默认值（scaffold 生成，render.sh 读取）
 └── go.mod
 ```
 
@@ -868,9 +869,17 @@ pkg/xcodes/
 
 每个 `-service` 项目必须提供：`build`、`run`、`test`、`lint`、`fmt`、`vet`、`generate`、`proto`、`migrate`、`tidy`。
 
-### Dockerfile
+### Docker 打包（交接给 golang-service-docker）
 
-多阶段构建，distroless static 最终镜像，CGO 关掉，ldflags `-s -w`。
+`Dockerfile` / `docker-compose.yaml` / `.dockerignore` / Makefile 的 `docker-*` target 由脚手架在生成服务后**自动交给 `golang-service-docker` 的 `render.sh`** 产出：标准多阶段构建（`golang:<ver>-bookworm` 编译 → `alpine:3.24` 运行时，带 `grpc_health_probe` 健康检查 + 平台矩阵）。scaffold **不**自带简陋 Dockerfile 模板，避免和 docker skill 的标准件冲突。
+
+配套的配置契约（三个必须一起）：
+
+- `config.example.yaml` 是**纯结构**——每个值都是 `${VAR}` 占位符，零字面量。
+- `pkg/config/config.go` 的 `configx.Load(...)` **必须传 `configx.WithExpandEnv()`**，`${VAR}` 才会在启动时从环境展开（默认不开）。
+- `.env.example`（scaffold 生成）是 **docker-compose 取向**的默认值源（host 名是 compose 服务名，如 `DATABASE_HOST=postgres`）。本地 `make run` 需 `cp .env.example .env` 并把 docker host 名改成本地地址；`docker compose up` 直接用默认值即可。
+
+演进时（加 Postgres / 改端口 / 切 prebuilt）重跑 `golang-service-docker` 的 `render.sh`，幂等——它读取 `.env.example`（不覆盖）并用其默认值生成 compose 内联默认。
 
 ### .golangci.yml
 

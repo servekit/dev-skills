@@ -86,11 +86,19 @@ type DemoServiceConfig struct {
 //   - ./config.yaml
 //   - ${{.NameUpper}}_SERVICE_CONFIG
 //
-// Env vars under ${{.NameUpper}}_SERVICE_ override file values; struct `default:` tags
-// apply last.
+// config.example.yaml is fully placeholder-driven: every value is a ${VAR}
+// reference expanded from the process environment (WithExpandEnv), so the file
+// holds structure only — all actual values live in .env.example / the runtime
+// env. Env vars under ${{.NameUpper}}_SERVICE_ also override file values via
+// viper's automatic binding; struct `default:` tags apply last.
 func Load() (*Config, error) {
 	var cfg Config
-	if err := configx.Load(&cfg, configx.WithServiceName(serviceName), configx.WithEnvPrefix(envPrefix)); err != nil {
+	if err := configx.Load(&cfg,
+		configx.WithServiceName(serviceName),
+		configx.WithEnvPrefix(envPrefix),
+		// Expand ${VAR} placeholders in config values from the process env.
+		configx.WithExpandEnv(),
+	); err != nil {
 		return nil, err
 	}
 	return &cfg, nil

@@ -28,6 +28,26 @@ make run
 
 gRPC server 监听 `:9000`，HTTP gateway 监听 `:8080`。
 
+## 配置与环境变量
+
+`config.example.yaml` 是**纯结构**（每个值都是 `${VAR}` 占位符，由 configx `WithExpandEnv`
+从环境展开）；`.env.example` 是 **docker-compose 取向**的默认值源。前者管结构，后者管值。
+
+**本地跑（`make run`）：**
+
+```bash
+cp .env.example .env
+# 改 docker host 名为本地地址（config.yaml 由 make run 自动从 config.example.yaml 拷出）：
+#   DEMO_SERVICE_DATABASE_HOST: postgres  ->  localhost
+make run            # 需要本机 PostgreSQL 跑着
+```
+
+**docker compose 跑（`make docker-up`）：** 无需改 `.env`——compose 注入全部 env，host 名正好是
+服务名（`postgres`）。改任何配置值都改 `.env`，不要往 `config.example.yaml` 写字面量。
+
+**构建在受限网络（proxy.golang.org 不通）？** 在 `.env` 加 `GOPROXY=https://goproxy.cn,direct`
+再 `make docker-build` / `make docker-up`。
+
 ## 测试调用
 
 ```bash

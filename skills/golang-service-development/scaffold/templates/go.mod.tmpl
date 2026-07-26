@@ -7,6 +7,7 @@ require (
 	buf.build/go/protovalidate v1.2.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0
+	github.com/joho/godotenv v1.5.1
 	github.com/redis/go-redis/v9 v9.20.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/servekit/go-common v0.0.0-20260723130254-570ffa65b1c5

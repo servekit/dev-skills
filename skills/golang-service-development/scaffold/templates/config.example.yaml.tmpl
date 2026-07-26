@@ -1,32 +1,38 @@
-# Copy to config.yaml and edit. Real secrets come from env vars or a secret
-# manager — never commit production values.
+# Structure-only config template. Every value is a ${VAR} placeholder expanded
+# by configx (WithExpandEnv) from the process environment at startup; see
+# .env.example for the actual values. To override a value, set the env var in
+# .env (local) or the container/deployment env — never hard-code values here.
+#
+# configx loads ./config.yaml (NOT this file). `make run` copies this template
+# to config.yaml automatically when missing; for docker, the renderer copies it
+# into the image as /app/config.yaml.
 
 server:
-  grpc_addr: ":9000"
-  http_addr: ":8080"
+  grpc_addr: {{envvar "SERVER_GRPC_ADDR"}}
+  http_addr: {{envvar "SERVER_HTTP_ADDR"}}
 
 database:
-  host: localhost
-  port: 5432
-  user: postgres
-  password: postgres
-  dbname: {{.Name}}_service
-  sslmode: disable
-  max_open_conns: 25
-  max_idle_conns: 10
-  conn_max_lifetime: 5m
+  host: {{envvar "DATABASE_HOST"}}
+  port: {{envvar "DATABASE_PORT"}}
+  user: {{envvar "DATABASE_USER"}}
+  password: {{envvar "DATABASE_PASSWORD"}}
+  dbname: {{envvar "DATABASE_DBNAME"}}
+  sslmode: {{envvar "DATABASE_SSLMODE"}}
+  max_open_conns: {{envvar "DATABASE_MAX_OPEN_CONNS"}}
+  max_idle_conns: {{envvar "DATABASE_MAX_IDLE_CONNS"}}
+  conn_max_lifetime: {{envvar "DATABASE_CONN_MAX_LIFETIME"}}
 
 third_party:
   demo:
-    mode: module           # "grpc" for remote, "module" for in-process (default)
-    target: ""             # gRPC addr, e.g. "localhost:9000" when mode=grpc
-    config:                # in-process config when mode=module
-      prefix: "[demo]"
-      max_input_len: 1024
+    mode: {{envvar "THIRD_PARTY_DEMO_MODE"}}
+    target: {{envvar "THIRD_PARTY_DEMO_TARGET"}}
+    config:
+      prefix: {{envvar "THIRD_PARTY_DEMO_CONFIG_PREFIX"}}
+      max_input_len: {{envvar "THIRD_PARTY_DEMO_CONFIG_MAX_INPUT_LEN"}}
 
 cron:
-  timezone: "Asia/Shanghai"   # used by jobs.Scheduler; expressions evaluate in this TZ
+  timezone: {{envvar "CRON_TIMEZONE"}}
 
 log:
-  level: info
-  format: json
+  level: {{envvar "LOG_LEVEL"}}
+  format: {{envvar "LOG_FORMAT"}}

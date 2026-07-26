@@ -10,8 +10,9 @@ CMD_DIR  := cmd/server
 build:
 	go build -o bin/$(BIN_NAME) ./$(CMD_DIR)/
 
-## run: Run the server locally
+## run: Run the server locally (auto-copies config.example.yaml -> config.yaml if missing)
 run:
+	@test -f config.yaml || cp config.example.yaml config.yaml
 	go run ./$(CMD_DIR)/
 
 ## test: Run tests with race detector
@@ -41,6 +42,7 @@ proto:
 
 ## migrate: Run database migrations (AutoMigrate) via the unified binary
 migrate:
+	@test -f config.yaml || cp config.example.yaml config.yaml
 	go run ./$(CMD_DIR) migrate
 
 ## tidy: Run go mod tidy

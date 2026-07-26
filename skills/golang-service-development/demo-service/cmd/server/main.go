@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/servekit/go-common/logging"
 	"github.com/servekit/go-common/signalx"
 
@@ -21,6 +22,14 @@ import (
 )
 
 func main() {
+	// Load .env when present so local binary runs (make run) pick up the same
+	// values docker-compose injects. Optional: a missing .env (docker/prod,
+	// where env is injected directly) is normal and not an error — only warn on
+	// a malformed file.
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
+		fmt.Fprintln(os.Stderr, "warning: failed to load .env:", err)
+	}
+
 	switch subcommand() {
 	case "", "serve":
 		if err := runServer(); err != nil {

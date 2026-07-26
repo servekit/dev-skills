@@ -13,6 +13,12 @@
 //	{{.Module}}      Go module path    (e.g., "user-service")
 //	{{.Plural}}      lowercase plural  (e.g., "users")
 //	{{.NameUpper}}   SCREAMING_SNAKE   (e.g., "USER")
+//	{{.EnvPrefix}}   configx env prefix (e.g., "USER_SERVICE")
+//
+// Template function:
+//
+//	{{envvar "DATABASE_HOST"}}  -> ${USER_SERVICE_DATABASE_HOST}
+//	Used by config.example.yaml to emit ${VAR} placeholders.
 //
 // File paths in templates/ may also use these variables — they get rendered
 // before writing (so api/proto/{{.Name}}/v1/{{.Name}}.proto.tmpl becomes
@@ -25,6 +31,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -42,6 +49,9 @@ type Spec struct {
 	Module    string // "user-service"
 	Plural    string // "users"
 	NameUpper string // "USER"
+	// EnvPrefix is the configx env prefix (NAME_SERVICE), used by configx
+	// WithEnvPrefix and as the ${VAR} namespace in config.example.yaml.
+	EnvPrefix string // "USER_SERVICE"
 }
 
 var nameRe = regexp.MustCompile(`^[a-z][a-z0-9]*$`)
@@ -65,6 +75,7 @@ func newSpec(name, targetParent string) (Spec, string, error) {
 		Module:    name + "-service",
 		Plural:    name + "s",
 		NameUpper: strings.ToUpper(name),
+		EnvPrefix: strings.ToUpper(name) + "_SERVICE",
 	}, target, nil
 }
 
@@ -139,6 +150,12 @@ func main() {
 		fail(err)
 	}
 
+	// Hand off Docker packaging to the golang-service-docker renderer so the
+	// scaffold ships a docker-skill-standard Dockerfile/compose/.env rather than
+	// a naive one. render.sh reads the just-generated config.example.yaml
+	// (${VAR}) and .env.example (defaults) and stays idempotent for rerenders.
+	renderDocker(spec, target, repoRoot)
+
 	fmt.Printf("Created %s\n\n", target)
 	fmt.Println("Next:")
 	fmt.Printf("  cd %s\n", target)
@@ -146,7 +163,11 @@ func main() {
 	fmt.Println("  make proto       # generates gen/")
 	fmt.Println("  make generate    # generates internal/store/generated/")
 	fmt.Println("  make migrate     # creates DB tables (needs PostgreSQL)")
-	fmt.Println("  make run         # starts :9000 (gRPC) + :8080 (HTTP)")
+	fmt.Println("  make run         # local: cp .env.example .env first (edit DATABASE_HOST -> localhost)")
+	fmt.Println()
+	fmt.Println("Docker (Dockerfile + docker-compose.yaml generated):")
+	fmt.Println("  make docker-up         # build + start the compose stack")
+	fmt.Println("    # behind a firewall? set GOPROXY=https://goproxy.cn,direct in .env first")
 }
 
 func fail(err error) {
@@ -196,7 +217,14 @@ func renderAll(spec Spec, target string) error {
 }
 
 func renderString(name, src string, spec Spec) (string, error) {
-	tmpl, err := template.New(name).Parse(src)
+	tmpl, err := template.New(name).Funcs(template.FuncMap{
+		// envvar renders a ${ENV_PREFIX_VAR} placeholder for config.example.yaml.
+		// Building it inside an action avoids the ${{ triple-brace parse conflict
+		// that arises when a literal "${" sits directly before a {{action}}.
+		"envvar": func(varName string) string {
+			return "${" + spec.EnvPrefix + "_" + varName + "}"
+		},
+	}).Parse(src)
 	if err != nil {
 		return "", err
 	}
@@ -205,4 +233,34 @@ func renderString(name, src string, spec Spec) (string, error) {
 		return "", err
 	}
 	return buf.String(), nil
+}
+
+// renderDocker shells out to the golang-service-docker renderer to add Docker
+// packaging (Dockerfile, docker-compose.yaml, .dockerignore, Makefile targets)
+// to the freshly generated service. Best-effort: if the renderer is absent
+// (docker skill not installed) or fails, the Go skeleton is still complete and
+// the user can run render.sh manually later.
+func renderDocker(spec Spec, target, repoRoot string) {
+	renderSh := filepath.Join(repoRoot, "skills", "golang-service-docker", "scripts", "render.sh")
+	if _, err := os.Stat(renderSh); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %s not found; skipping Docker packaging\n", renderSh)
+		return
+	}
+	cmd := exec.Command("bash", renderSh,
+		"--target", target,
+		"--service-name", spec.Module,
+		"--binary-name", spec.Module,
+		"--build-path", "./cmd/server",
+		"--grpc-port", "9000",
+		"--http-port", "8080",
+		"--env-prefix", spec.EnvPrefix,
+		"--database", "postgres",
+		"--config-mode", "copy",
+		"--config-source", "config.example.yaml",
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: docker packaging render failed: %v\n", err)
+	}
 }
