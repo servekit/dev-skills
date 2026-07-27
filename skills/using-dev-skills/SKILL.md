@@ -66,8 +66,9 @@ Disambiguation:
 
 ## Router skills — load the entry, it delegates to sub-documents
 
-Four skills use a router pattern: read their `SKILL.md` first, it routes you to the right sub-document. The sub-documents are NOT in the auto-index; the entry tells you when to load them.
+Five skills use a router pattern: read their `SKILL.md` first, it routes you to the right sub-document. The sub-documents are NOT in the auto-index; the entry tells you when to load them.
 
+- **golang-service-development** → entry leads with task-type routing + quick-paths (add RPC / new service / new domain); sub-docs: `architecture` (layout, handler↔service↔store, thirdcall, lifecycle, project conventions) · `enum` (proto enum ↔ DB int) · `jobs` (cron) · `scaffold` (new-service.sh, templates).
 - **proto-development** → `proto-best-practices` (writing `.proto`) · `buf-usage` (buf CLI, `buf.yaml`/`buf.gen.yaml`, managed mode, CI) · `protovalidate` (field rules, CEL, Go runtime interceptor).
 - **opa-development** → Rego core lives in the entry; sub-docs: `rego-language` (advanced semantics) · `rego-testing-style` · `rego-builtins` (~170 functions) · `opa-operations` (CLI/server/K8s/Envoy/Terraform).
 - **rust-development** → entry covers general Rust; sub-docs: `rust-unsafe-rules` · `rust-concurrency-async-rules` · `rust-optimization-testing`.
