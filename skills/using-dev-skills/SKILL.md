@@ -12,7 +12,7 @@ dev-skills is a set of **domain development standards** that Claude Code auto-lo
 dev-skills is multi-language, but its skills sit in two tiers:
 
 - **General language standards** — `golang-development`, `rust-development`, `ts-development`, `opa-development`, `proto-development`, `gorm-cli-development`. Apply to any project in that language.
-- **go-common service toolchain** — `golang-service-development` + `golang-service-docker`. Specific to the `github.com/servekit/go-common` ecosystem (grpcx / configx / lifecycle). Do NOT apply these two to non-go-common Go projects, and there is no non-Go docker scaffold here.
+- **Go `-service` toolchain** — `golang-service-development` + `golang-service-docker`. For Go services that follow the `-service` architecture (`pkg/internal/cmd` layout, grpcx, `lifecycle.Manager`). They default to the `github.com/servekit/go-common` library — use it preferentially; with another stack the architecture still applies, just adapt the API calls. (The docker scaffold is grpcx/Go-only.)
 
 ## The rule
 
@@ -24,8 +24,8 @@ Match the task's primary signal, then invoke. When several signals match, also a
 
 | Primary signal | Skill |
 |---|---|
-| Any `.go` file | **golang-development** — always, as Go baseline |
-| New `-service` repo on `go-common`; or `pkg/handler` ↔ `internal/service` ↔ `store` layering; thirdcall; `lifecycle.Manager`; `new-service.sh` scaffold | **golang-service-development** |
+| Any `.go` file | **golang-development** — always loaded as the Go *baseline* (style/lint); NOT the lead when scaffolding a new service |
+| **Creating / scaffolding a new Go service** — any gRPC / grpc-gateway / HTTP backend (named `*-service` by convention, but `pay`, `order`, `userapi` also count); the scaffold generates `go.mod`, so do NOT gate on it; or an existing service repo; or `pkg/handler` ↔ `internal/service` ↔ `store` layering; thirdcall; `lifecycle.Manager` | **golang-service-development** — LEAD for new services |
 | A Go project using GORM as its ORM — `store/models` · `gorm gen` · `store/generated` · `store/dal` · type-safe CRUD · transactions | **gorm-cli-development** |
 | Any `.proto` · `buf.yaml`/`buf.gen.yaml` · protovalidate · field validation · CEL | **proto-development** |
 | The project needs a policy/rules engine — any `.rego` · OPA · Rego · Gatekeeper · policy-as-code · admission control · Envoy/Terraform authz | **opa-development** |
@@ -33,19 +33,31 @@ Match the task's primary signal, then invoke. When several signals match, also a
 | Any `.ts`/`.tsx`/`.js`/`.mjs`/`.cjs` (incl. React/Vue) | **ts-development** |
 | Dockerize / build image / compose-stack an **existing grpcx-based Go service** | **golang-service-docker** |
 
+### Creating a new Go service — default to golang-service-development
+
+The most common routing mistake: a "create a Go project / service" request lands on `golang-development` alone. In this stack a new Go service is built with **golang-service-development** as the LEAD (scaffold + architecture); `golang-development` is only the baseline. Decide by **intent, not name**:
+
+- The user wants a Go **service** — a long-running gRPC / grpc-gateway / HTTP backend, a microservice, anything with an API — → **golang-service-development LEADS**. The servekit convention names them `*-service`, but `pay`, `order`, `userapi` serve an API and qualify too. The scaffold creates `go.mod`, so do NOT gate on it (it doesn't exist yet at creation).
+- The user wants a clearly non-service Go program — a CLI tool, a library, a script — → **golang-development** alone.
+- Ambiguous ("create a golang project named X") → **default to golang-service-development** and confirm with the user. Loading it needlessly is cheap; scaffolding a service with only the Go style guide is expensive.
+
 ## Go is special — three skills that COMPOSE, not pick-one
 
-Go has three overlapping skills. Each owns a different layer, and inside a `go-common` `-service` they all apply simultaneously:
+Go has three overlapping skills. Each owns a different layer, and inside a `-service` repo they all apply simultaneously:
 
 | Skill | Layer it owns | Scope |
 |---|---|---|
 | **golang-development** | Go style — naming, errors, concurrency, testing, doc comments, gofmt/goimports/golangci-lint, Config-struct pointer fields | Every `.go`, in any repo |
-| **golang-service-development** | Architecture — directory layout (`pkg/internal/cmd/api/gen`), handler↔service↔store split, thirdcall interface/impl, `lifecycle.Manager` resources, proto-enum→DB-int handling, `internal/jobs` cron, the scaffold workflow | `-service` repos whose `go.mod` contains `github.com/servekit/go-common` |
+| **golang-service-development** | Architecture — directory layout (`pkg/internal/cmd/api/gen`), handler↔service↔store split, thirdcall interface/impl, `lifecycle.Manager` resources, proto-enum→DB-int handling, `internal/jobs` cron, the scaffold workflow | Go `-service` repos (go-common by default) |
 | **gorm-cli-development** | DB layer — `store/{models,generated,dal}`, `gorm gen`, type-safe CRUD, Typed Raw SQL, transactions, associations | Any project using `gorm.io/cli` |
 
-A brand-new service with a proto API + a database is a **stack applied in order**:
+A brand-new `-service` is built in this order — **scaffold first, then layer on**:
 
-**proto-development** (define the API) → **golang-service-development** (scaffold the service) → **gorm-cli-development** (the DAL) → **golang-development** (baseline Go on every `.go`) → **golang-service-docker** (package it).
+1. **golang-service-development** — scaffold the skeleton with `new-service.sh`. It produces a runnable service with a baseline proto, the directory layout, and lifecycle wiring already in place.
+2. **proto-development** — *if the API needs to change*: edit the proto and regenerate the Go code.
+3. **gorm-cli-development** — *if there's a database*: build the DAL (`store/models`, `store/dal`).
+4. **golang-development** — write the business code on the generated `.go` files; baseline Go style applies throughout.
+5. **golang-service-docker** — *when packaging*: confirm the project has the docker config, then build the image / compose stack.
 
 Disambiguation:
 - "Write/review this Go code" (no service/DB context) → `golang-development` alone.
