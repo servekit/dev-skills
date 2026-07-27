@@ -6,10 +6,6 @@ This file provides guidance to Claude Code when working in this repository.
 
 **dev-skills** is a Claude Code **plugin** — a library of domain development Skills (Go, Rust, TypeScript, OPA, Protobuf standards + a go-common service toolchain). It is NOT a build-script repo. Skills are auto-discovered by Claude Code; a SessionStart hook injects a routing guide (`using-dev-skills`) plus an auto-generated skill index, forcing reliable skill usage. Modeled after [superpowers](https://github.com/obra/superpowers).
 
-## There is no build step
-
-It's a plugin: enable via `/plugin marketplace add` + `/plugin install` (see README). There is no `build-rules.sh` — that rules-concatenation pipeline was removed; the plugin model replaced it.
-
 ## Architecture
 
 ```
@@ -39,4 +35,3 @@ Router skills (`proto/opa/rust/ts-development`) use an entry SKILL.md that deleg
 
 - Test the hook locally: `./hooks/session-start` — output must be valid JSON (pipe through `python3 -m json.tool` to check).
 - After editing `skills/using-dev-skills/SKILL.md`, re-run the hook to confirm the YAML frontmatter strips cleanly and the index still renders.
-- `golang-service-docker` keeps internal renderer markers named `service-docker-scaffold` (a stability contract for already-generated Makefiles) — do NOT rename them to match the skill's display name.
