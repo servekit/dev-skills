@@ -3,11 +3,11 @@ set -euo pipefail
 
 test_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 renderer="${test_script_dir}/render.sh"
-test_root="$(mktemp -d /tmp/service-docker-scaffold-test.XXXXXX)"
-# Images built by the SERVICE_DOCKER_SCAFFOLD_BUILD_TEST block. The EXIT trap
+test_root="$(mktemp -d /tmp/golang-service-docker-test.XXXXXX)"
+# Images built by the GOLANG_SERVICE_DOCKER_BUILD_TEST block. The EXIT trap
 # removes them so the regression suite leaves no local image artifacts behind.
 test_built_images=""
-keep_built_images="${SERVICE_DOCKER_SCAFFOLD_KEEP_IMAGE:-0}"
+keep_built_images="${GOLANG_SERVICE_DOCKER_KEEP_IMAGE:-0}"
 
 cleanup() {
   rm -rf "$test_root"
@@ -116,7 +116,7 @@ bash "$renderer" \
   --env-prefix SOLO_SERVICE >/dev/null
 solo_after="$(cksum "${solo_fixture}/Makefile" "${solo_fixture}/docker-compose.yaml")"
 [[ "$solo_before" == "$solo_after" ]] || fail 'rerender is not idempotent'
-[[ "$(grep -c '^# BEGIN service-docker-scaffold$' "${solo_fixture}/Makefile")" == 1 ]] || fail 'Makefile block duplicated'
+[[ "$(grep -c '^# BEGIN golang-service-docker$' "${solo_fixture}/Makefile")" == 1 ]] || fail 'Makefile block duplicated'
 
 gateway_fixture="$(new_fixture gateway-service)"
 printf 'server:\n  grpc_addr: ":9000"\n  http_addr: ":8080"\nintegration:\n  token: ${GATEWAY_SERVICE_VENDOR_TOKEN}\n' > "${gateway_fixture}/config.example.yaml"
@@ -288,10 +288,10 @@ assert_contains "${owned_env_fixture}/.env.example" 'service-owned env template;
 assert_contains "${owned_env_fixture}/.env.example" 'PAYMENTSVC_ONLY_VAR=kept'
 assert_contains "${owned_env_fixture}/docker-compose.yaml" 'EXTERNAL_API_TOKEN=${EXTERNAL_API_TOKEN:-scaffold-default-token}'
 
-if [[ "${SERVICE_DOCKER_SCAFFOLD_BUILD_TEST:-0}" == 1 ]]; then
-  if [[ -n "${SERVICE_DOCKER_SCAFFOLD_TARGET_PLATFORM:-}" ]]; then
+if [[ "${GOLANG_SERVICE_DOCKER_BUILD_TEST:-0}" == 1 ]]; then
+  if [[ -n "${GOLANG_SERVICE_DOCKER_TARGET_PLATFORM:-}" ]]; then
     make -C "$solo_fixture" \
-      TARGET_PLATFORM="$SERVICE_DOCKER_SCAFFOLD_TARGET_PLATFORM" \
+      TARGET_PLATFORM="$GOLANG_SERVICE_DOCKER_TARGET_PLATFORM" \
       docker-build
   else
     make -C "$solo_fixture" docker-build
@@ -303,4 +303,4 @@ if [[ "${SERVICE_DOCKER_SCAFFOLD_BUILD_TEST:-0}" == 1 ]]; then
   test_built_images="${built_repo}:${built_tag}"
 fi
 
-printf 'PASS: service-docker-scaffold renderer regression suite\n'
+printf 'PASS: golang-service-docker renderer regression suite\n'

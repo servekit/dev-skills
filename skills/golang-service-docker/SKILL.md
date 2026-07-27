@@ -212,6 +212,6 @@ When changing a template or renderer behavior, run:
 bash skills/golang-service-docker/scripts/test-render.sh
 ```
 
-For a real image build in CI, set `SERVICE_DOCKER_SCAFFOLD_BUILD_TEST=1`; the suite removes the built image afterward (`SERVICE_DOCKER_SCAFFOLD_KEEP_IMAGE=1` keeps it for inspection).
+For a real image build in CI, set `GOLANG_SERVICE_DOCKER_BUILD_TEST=1`; the suite removes the built image afterward (`GOLANG_SERVICE_DOCKER_KEEP_IMAGE=1` keeps it for inspection).
 
-Keep the renderer idempotent and preserve the `service-docker-scaffold` Makefile markers. Add a regression case for every new dependency or conditional branch.
+Keep the renderer idempotent and preserve the `golang-service-docker` Makefile markers. Add a regression case for every new dependency or conditional branch.
