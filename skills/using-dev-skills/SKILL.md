@@ -1,6 +1,6 @@
 ---
 name: using-dev-skills
-description: "dev-skills 操作指南:何时用哪个 skill 的精确路由。重点解决三类难题——(1) 三个 Go skill(golang-development / golang-service-development / gorm-cli-development)如何分层组合;(2) 四个 router skill(proto/opa/rust/ts)的子文档分发;(3) Docker 边界与 dev-skills 不覆盖的范围(go-common-usage 等)。SessionStart 时由 hook 自动注入;仅当上下文丢失时手动调用。"
+description: "Use when starting any coding task — establishes how to find and pick the right dev-skills skill, requiring skill invocation before writing, editing, scaffolding, or reviewing code. Auto-injected at SessionStart; invoke manually only if context is lost."
 ---
 
 # Using dev-skills
@@ -26,9 +26,9 @@ Match the task's primary signal, then invoke. When several signals match, also a
 |---|---|
 | Any `.go` file | **golang-development** — always, as Go baseline |
 | New `-service` repo on `go-common`; or `pkg/handler` ↔ `internal/service` ↔ `store` layering; thirdcall; `lifecycle.Manager`; `new-service.sh` scaffold | **golang-service-development** |
-| DB layer: `store/models` · `gorm gen` · `store/generated` · `store/dal` · type-safe CRUD · transactions | **gorm-cli-development** |
+| A Go project using GORM as its ORM — `store/models` · `gorm gen` · `store/generated` · `store/dal` · type-safe CRUD · transactions | **gorm-cli-development** |
 | Any `.proto` · `buf.yaml`/`buf.gen.yaml` · protovalidate · field validation · CEL | **proto-development** |
-| Any `.rego` · OPA · Rego · Gatekeeper · policy-as-code · admission control · Envoy/Terraform authz | **opa-development** |
+| The project needs a policy/rules engine — any `.rego` · OPA · Rego · Gatekeeper · policy-as-code · admission control · Envoy/Terraform authz | **opa-development** |
 | Any `.rs` | **rust-development** |
 | Any `.ts`/`.tsx`/`.js`/`.mjs`/`.cjs` (incl. React/Vue) | **ts-development** |
 | Dockerize / build image / compose-stack an **existing grpcx-based Go service** | **golang-service-docker** |
@@ -68,7 +68,7 @@ Four skills use a router pattern: read their `SKILL.md` first, it routes you to 
 
 ## What dev-skills does NOT cover — do not route these here
 
-- **go-common library API** — `configx`, `redisx`, `dbx`, `xerr`, `grpcx`, `signalx`, `cronx`, `lifecycle`, `logging`, etc. These belong to the `go-common-usage` skill, which lives in the **go-common repo**, not this plugin. If a task is purely "how do I call go-common API X" and `go-common-usage` is not installed, say so — don't improvise.
+- **go-common library API** — `configx`, `redisx`, `dbx`, `xerr`, `grpcx`, `signalx`, `cronx`, `lifecycle`, `logging`, etc. These are out of dev-skills' scope; they are documented in the **go-common repo's README** ([github.com/servekit/go-common](https://github.com/servekit/go-common)). If a task is purely "how do I call go-common API X", consult that README — don't improvise from memory.
 - Migrations, Kubernetes/Helm manifests, and CI pipelines (golang-service-docker scope stops at image + compose).
 
 ## Priority when several skills apply
