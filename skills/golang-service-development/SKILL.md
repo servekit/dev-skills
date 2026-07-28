@@ -83,17 +83,29 @@ make proto && make generate && go build ./...
 
 ## 2. 快速路径：新建一个服务（从零）
 
-一条命令生成完整骨架（默认创建在 dev-skills 平级目录）：
+**先从需求推断 4 个能力开关**（DB / Redis / thirdcall / example），能定就传 flag、不问用户；推断不出且在 tty 才让脚本交互问。
+
+| 需求信号 | flag |
+|---|---|
+| 持久化 / CRUD / 记录 | `--db`（PostgreSQL） |
+| 缓存 / 锁 / 限流 | `--redis` |
+| 调别的服务 | `--thirdcall` |
+| 要 CRUD 起点（隐含 `--db`） | `--example` |
+| 都不需要（健康检查 / 转发 / 计算） | 不传 = 最小空壳，无 Postgres 开箱跑 |
 
 ```bash
-./skills/golang-service-development/scripts/new-service.sh <name>   # 如 user / pay / order
+./skills/golang-service-development/scripts/new-service.sh <name> [flag...]   # ping / pay --db --example / cache --redis
 ```
 
-生成后进目录跑：
+不传 flag：tty 交互问 4 个；非交互（管道 / agent 已传 flag）= 最小空壳 + stderr 提示。
+
+生成后进目录跑（按能力）：
 
 ```bash
 cd <name>-service
-make tidy && make proto && make generate && make migrate && make run
+make tidy && make proto
+make run                       # 最小空壳无需 Postgres
+# 有 --db 时还要：make generate && make migrate
 ```
 
 命名约束：`<name>` 必须匹配 `^[a-z][a-z0-9]*$`（小写字母数字，无连字符/下划线）。详细用法、模板变量、改模板流程见 `scaffold.md`。

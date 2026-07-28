@@ -18,6 +18,16 @@ Demo service — 基于 [go-common](https://github.com/servekit/go-common) 的 g
 - **加 RPC 四步**：proto 加方法 → `make proto` → handler 加委托 → `service.go` 加 facade → 子包加业务。
 - **scaffold 是 one-shot**：本服务已生成，后续演进手写，**绝不重跑** `new-service.sh`（会覆盖丢代码）。
 
+## 增量能力必看范例（强制）
+
+给本服务**后加**任何资源能力（DB / Redis / 第三方调用 / 消息队列 / 其他 go-common 资源）时，**必须**照抄 demo-service 的 `resolveXxx` 实现 + `architecture.md` 的「用 lifecycle.Manager 而不是 ownX bool」段——**不许**自己发明集成方式：
+
+- **注入的资源**（`option.WithX`）**不注册**到 mgr，调用方拥有生命周期；
+- **自建的**注册为 `mgr.AddStopper(name, lifecycle.StopFunc(...))`，cleanup 错误用 `slog.Warn`（不要自造 closer 类型、不要在 service 里返回 cleanup error）；
+- 在 `internal/service/service.go` 的 `New()` 里 resolve（仿 `resolveDB` / `resolveRedis`），失败回滚 `mgr.Stop()`。
+
+scaffold 已按生成时的能力开关接好；这里说的是**生成之后**新加能力。
+
 ## 技术栈约定
 
 ### gRPC / Proto

@@ -42,15 +42,30 @@ skills/golang-service-development/
 ## 用法
 
 ```bash
-# 新建服务（默认 target = dev-skills 平级目录）
-./skills/golang-service-development/scripts/new-service.sh user
+# 新建服务（默认 target = dev-skills 平级目录）；不传能力 flag = 最小空壳
+./skills/golang-service-development/scripts/new-service.sh <name> [capability flags] [target-parent]
 
-# 在指定父目录创建
-./skills/golang-service-development/scripts/new-service.sh pay /some/parent/
+# 示例
+./skills/golang-service-development/scripts/new-service.sh ping                              # 最小空壳（无 DB，开箱跑）
+./skills/golang-service-development/scripts/new-service.sh pay /tmp/ --db --example           # CRUD + PostgreSQL
+./skills/golang-service-development/scripts/new-service.sh cache --redis                      # Redis
+./skills/golang-service-development/scripts/new-service.sh order --db --redis --thirdcall     # 全家桶
 
-# 重生成 demo-service（改完模板后跑）
+# 重生成 demo-service（改完模板后跑；全开 4 flag 保 golden sample）
 ./skills/golang-service-development/scripts/new-service.sh --regen-demo
 ```
+
+**能力 flag**（默认全 off = 最小空壳，无 Postgres 开箱跑）：
+
+| flag | 生成 |
+|---|---|
+| `--db` | PostgreSQL：`store/{models,dal,generated}` + migrate 子命令 + resolveDB + compose postgres |
+| `--redis` | Redis：resolveRedis + config.Redis + compose redis |
+| `--thirdcall` | 第三方调用占位：`pkg/thirdcall` + `internal/thirdcall` + option/config 接线 |
+| `--example` | CRUD 起点领域（`{Name}` 的 Create/Get/List/Update/Delete），隐含 `--db` |
+| `--no-X` | 关闭（如 `--db --no-redis`）；多个 flag 后者胜出 |
+
+**交互收参**：不传任何能力 flag 时——stdin 是 tty 则逐个问（默认 N）；非交互（管道 / agent 已传 flag）则最小空壳 + stderr 提示。agent 推断出答案就**直接传 flag**，别走交互。
 
 ## 模板变量
 
