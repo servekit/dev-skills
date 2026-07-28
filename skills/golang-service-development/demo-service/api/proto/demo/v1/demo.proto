@@ -72,6 +72,10 @@ message DeleteDemoRequest {
 }
 
 service DemoService {
+  rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option (google.api.http) = { get: "/ping" };
+  }
+
   rpc CreateDemo(CreateDemoRequest) returns (Demo) {
     option (google.api.http) = {
       post: "/v1/demos"

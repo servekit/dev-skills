@@ -72,6 +72,10 @@ message Delete{{.Pascal}}Request {
 }
 {{end}}
 service {{.Pascal}}Service {
+  rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option (google.api.http) = { get: "/ping" };
+  }
+
 {{if .Example}}  rpc Create{{.Pascal}}(Create{{.Pascal}}Request) returns ({{.Pascal}}) {
     option (google.api.http) = {
       post: "/v1/{{.Plural}}"

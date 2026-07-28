@@ -12,8 +12,10 @@ package handler
 
 import (
 	"context"
+
 	demov1 "demo-service/gen/demo/v1"
 	"demo-service/internal/service"
+
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -40,6 +42,14 @@ func (h *Handler) Start() error { return h.svc.Start() }
 // Stop releases resources owned by the service. After Stop, the Handler must
 // not be used.
 func (h *Handler) Stop() error { return h.svc.Stop() }
+
+// Ping is a health-check RPC, always generated so the grpc-gateway has at
+// least one HTTP endpoint and pkg/server.go can always register the gateway
+// handler. (A proto service with zero RPCs produces no HandlerFromEndpoint,
+// which would silently disable the HTTP gateway.)
+func (h *Handler) Ping(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	return h.svc.Ping(ctx)
+}
 
 // CreateDemo delegates to service.CreateDemo.
 func (h *Handler) CreateDemo(ctx context.Context, req *demov1.CreateDemoRequest) (*demov1.Demo, error) {

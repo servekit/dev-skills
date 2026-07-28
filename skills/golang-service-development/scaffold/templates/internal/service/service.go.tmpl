@@ -28,7 +28,7 @@
 package service
 
 import (
-	{{if .Example}}"context"{{end}}
+	"context"
 	"errors"
 	"fmt"
 	{{if or .DB .Redis .Thirdcall}}"log/slog"{{end}}
@@ -42,6 +42,8 @@ import (
 	"{{.Module}}/pkg/config"
 	"{{.Module}}/pkg/option"
 	{{if .Thirdcall}}"{{.Module}}/pkg/thirdcall"{{end}}
+
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/servekit/go-common/cronx"
 	{{if .DB}}"github.com/servekit/go-common/dbx"{{end}}
@@ -131,6 +133,11 @@ func (s *Service) Start() error { return s.mgr.Start() }
 
 // Stop stops all owned components in reverse registration order.
 func (s *Service) Stop() error { return s.mgr.Stop() }
+
+// Ping is a health-check RPC (always generated; see handler.Ping).
+func (s *Service) Ping(ctx context.Context) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, nil
+}
 	{{if .Example}}
 // --- facade methods (one per RPC, delegate to subpackage) ---
 //

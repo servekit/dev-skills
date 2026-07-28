@@ -75,9 +75,20 @@ make proto && make generate && go build ./...
 
 通过即可。**不要**一上来就 `make run` + grpcurl + curl——那是新建服务验收用的（见 `architecture.md` §7），日常迭代用上面三件套足够。
 
-### ⛔ 这一步**不要读**的文件
+### 加 RPC 时读什么、不读什么
 
-`gen/`（自动生成）、`cmd/`、`pkg/server.go`、`pkg/module.go`、`pkg/client.go`、`pkg/config/`、`pkg/option/`（框架代码，加 RPC 不用动）；以及 skill 仓库里的 `scaffold/`、`demo-service/`（示例，不是你的代码）。读它们 = 被淹死 + 浪费时间。
+**常规加 RPC**（上面四步）只动那 4 个文件，下列**一般不用读**（读了容易绕远、浪费时间）：
+
+- `gen/`（自动生成，改 proto 后 `make proto` 重生）
+- `cmd/`、`pkg/config/`、`pkg/option/`、`buf*.yaml`（加 RPC 不用动）
+- skill 仓库的 `scaffold/`、`demo-service/`（示例，不在你的服务里）
+
+**但调试启动 / 网关 / 拦截器 / 端口这类问题时，反过来——先读这两处框架代码，通常一眼定位**：
+
+- `pkg/server.go` 的 `grpcx.New(...)`：网关启停、拦截器、端口都在这里。比如 HTTP gateway 没监听，看 `registerGW` / `GatewayAddr` 那几行，别先去猜配置 / env / godotenv。
+- `internal/service/service.go` 的 `New()`：资源 resolve、生命周期。
+
+`pkg/handler` 和 `internal/service/<domain>/` 是你的主战场，随便读。
 
 ---
 
@@ -165,7 +176,7 @@ scaffold 生成的那套以服务名为名的代码（demo-service 里满眼的 
 1. **先判规模再动手**：go.mod 已存在 → 已有服务 → §1 手写快速路径；go.mod 不存在 → 新建 → §2 scaffold。别把加接口当搭服务。
 2. **scaffold 是 one-shot**：已有服务绝不重跑 `new-service.sh`。
 3. **最小验证闭环**：加完 RPC 跑 `make proto && make generate && go build ./...`，别一上来 `make run` + grpcurl + curl 全套。
-4. **只读必要文件**：加 RPC 只读 §1 列的那几个；**别读** `gen/`、`scaffold/`、`demo-service/`、`cmd/`、`pkg/server.go` 等生成产物 / 示例 / 框架代码。
+4. **按阶段读文件**：常规加 RPC 只读 §1 列的那几个，`gen/`、`scaffold/`、`demo-service/`、`cmd/`、`pkg/config`、`pkg/option` 一般不用读；但**调试启动 / 网关 / 端口问题**时先读 `pkg/server.go`（`grpcx.New`）和 `internal/service/service.go`（`New`）——通常一眼定位，别先猜配置。
 5. **枚举优先 proto**：枚举在 proto 定义、DB 存 int32，用 proto 内置方法转换（`int32(x)` / `demov1.DemoStatus(x)`），**不要写 helper**（详见 `enum.md`）。
 
 ---
