@@ -20,6 +20,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	DemoService_Ping_FullMethodName       = "/demo.v1.DemoService/Ping"
 	DemoService_CreateDemo_FullMethodName = "/demo.v1.DemoService/CreateDemo"
 	DemoService_GetDemo_FullMethodName    = "/demo.v1.DemoService/GetDemo"
 	DemoService_ListDemos_FullMethodName  = "/demo.v1.DemoService/ListDemos"
@@ -31,6 +32,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DemoServiceClient interface {
+	Ping(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Pong, error)
 	CreateDemo(ctx context.Context, in *CreateDemoRequest, opts ...grpc.CallOption) (*Demo, error)
 	GetDemo(ctx context.Context, in *GetDemoRequest, opts ...grpc.CallOption) (*Demo, error)
 	ListDemos(ctx context.Context, in *ListDemosRequest, opts ...grpc.CallOption) (*ListDemosResponse, error)
@@ -44,6 +46,16 @@ type demoServiceClient struct {
 
 func NewDemoServiceClient(cc grpc.ClientConnInterface) DemoServiceClient {
 	return &demoServiceClient{cc}
+}
+
+func (c *demoServiceClient) Ping(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Pong, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Pong)
+	err := c.cc.Invoke(ctx, DemoService_Ping_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *demoServiceClient) CreateDemo(ctx context.Context, in *CreateDemoRequest, opts ...grpc.CallOption) (*Demo, error) {
@@ -100,6 +112,7 @@ func (c *demoServiceClient) DeleteDemo(ctx context.Context, in *DeleteDemoReques
 // All implementations must embed UnimplementedDemoServiceServer
 // for forward compatibility.
 type DemoServiceServer interface {
+	Ping(context.Context, *emptypb.Empty) (*Pong, error)
 	CreateDemo(context.Context, *CreateDemoRequest) (*Demo, error)
 	GetDemo(context.Context, *GetDemoRequest) (*Demo, error)
 	ListDemos(context.Context, *ListDemosRequest) (*ListDemosResponse, error)
@@ -115,6 +128,9 @@ type DemoServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedDemoServiceServer struct{}
 
+func (UnimplementedDemoServiceServer) Ping(context.Context, *emptypb.Empty) (*Pong, error) {
+	return nil, status.Error(codes.Unimplemented, "method Ping not implemented")
+}
 func (UnimplementedDemoServiceServer) CreateDemo(context.Context, *CreateDemoRequest) (*Demo, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateDemo not implemented")
 }
@@ -149,6 +165,24 @@ func RegisterDemoServiceServer(s grpc.ServiceRegistrar, srv DemoServiceServer) {
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&DemoService_ServiceDesc, srv)
+}
+
+func _DemoService_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DemoServiceServer).Ping(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DemoService_Ping_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DemoServiceServer).Ping(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _DemoService_CreateDemo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -248,6 +282,10 @@ var DemoService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "demo.v1.DemoService",
 	HandlerType: (*DemoServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Ping",
+			Handler:    _DemoService_Ping_Handler,
+		},
 		{
 			MethodName: "CreateDemo",
 			Handler:    _DemoService_CreateDemo_Handler,

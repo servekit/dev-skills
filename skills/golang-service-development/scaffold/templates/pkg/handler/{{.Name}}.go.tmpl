@@ -47,7 +47,7 @@ func (h *Handler) Stop() error { return h.svc.Stop() }
 // least one HTTP endpoint and pkg/server.go can always register the gateway
 // handler. (A proto service with zero RPCs produces no HandlerFromEndpoint,
 // which would silently disable the HTTP gateway.)
-func (h *Handler) Ping(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+func (h *Handler) Ping(ctx context.Context, _ *emptypb.Empty) (*{{.Name}}v1.Pong, error) {
 	return h.svc.Ping(ctx)
 }
 {{if .Example}}

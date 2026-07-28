@@ -71,8 +71,19 @@ message Delete{{.Pascal}}Request {
   int64 id = 1 [(buf.validate.field) = {int64: {gt: 0}}];
 }
 {{end}}
+// Pong is the health-check response — only public, non-sensitive info
+// (service name, build version, status, timestamps). Never include internal
+// addresses, IPs, env vars, secrets, or dependency topology here.
+message Pong {
+  string service = 1;     // service name, e.g. "demo-service"
+  string version = 2;     // build version (-ldflags injected; "dev" by default)
+  string status = 3;      // "SERVING" when serving normally
+  int64 now = 4;          // server time, Unix millis
+  int64 started_at = 5;   // process start time, Unix millis (client computes uptime)
+}
+
 service {{.Pascal}}Service {
-  rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty) {
+  rpc Ping(google.protobuf.Empty) returns (Pong) {
     option (google.api.http) = { get: "/ping" };
   }
 

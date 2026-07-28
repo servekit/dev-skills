@@ -13,18 +13,6 @@
 //     cfg (or injected via option) and passed to subpackage constructors. The
 //     subpackages do NOT manage resource lifecycle — this Service does via
 //     lifecycle.Manager.
-//
-// Lifecycle:
-//   - Service holds a *lifecycle.Manager that owns all "heavy" resources.
-//     Each owned resource is wrapped as a lifecycle.Stopper and registered
-//     with the manager; Stop stops them in reverse registration order.
-//   - Injected resources (via option.WithX) are NOT registered — caller owns
-//     their lifecycle.
-//   - Handler exposes Start/Stop by delegating to Service, so in-process
-//     module users get one-call lifecycle management.
-//   - Cleanup-path close errors are logged via slog.Warn rather than returned
-//     (Stopper-registered funcs run inside lifecycle.Manager; their errors
-//     would be lost anyway since StopFunc drops them).
 package service
 
 import (
@@ -32,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 	
 	"github.com/redis/go-redis/v9"
 	
@@ -43,13 +32,15 @@ import (
 	"demo-service/pkg/option"
 	"demo-service/pkg/thirdcall"
 
-	"google.golang.org/protobuf/types/known/emptypb"
-
 	"github.com/servekit/go-common/cronx"
 	"github.com/servekit/go-common/dbx"
 	"github.com/servekit/go-common/redisx"
 	"github.com/servekit/go-common/lifecycle"
 )
+
+// buildVersion is set via -ldflags at build time (e.g.
+// -X main.buildVersion=$(git rev-parse --short HEAD)); "dev" by default.
+var buildVersion = "dev"
 
 // Service holds demo-service business state.
 //
@@ -66,6 +57,9 @@ type Service struct {
 	demoSvc thirdcall.DemoService
 	// One field per domain subpackage. Add fields here as new domains appear.
 	demo *demo.Service
+
+	// startedAt is set once in New; Ping returns it for uptime.
+	startedAt int64
 }
 
 // New constructs a Service from config and functional options.
@@ -113,6 +107,7 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 		redis: redis,
 		demoSvc: demoSvc,
 		demo: demo.New(db),
+		startedAt: time.Now().UnixMilli(),
 	}
 
 	// jobs.Scheduler owns the cron instance; setupJobs builds it, registers
@@ -134,9 +129,18 @@ func (s *Service) Start() error { return s.mgr.Start() }
 // Stop stops all owned components in reverse registration order.
 func (s *Service) Stop() error { return s.mgr.Stop() }
 
-// Ping is a health-check RPC (always generated; see handler.Ping).
-func (s *Service) Ping(ctx context.Context) (*emptypb.Empty, error) {
-	return &emptypb.Empty{}, nil
+// Ping is a health-check RPC, always generated so the grpc-gateway has at
+// least one HTTP endpoint and pkg/server.go can always register the handler.
+// Returns only public, non-sensitive info — never internal addresses, env,
+// secrets, or dependency topology.
+func (s *Service) Ping(ctx context.Context) (*demov1.Pong, error) {
+	return &demov1.Pong{
+		Service:   "demo-service",
+		Version:   buildVersion,
+		Status:    "SERVING",
+		Now:       time.Now().UnixMilli(),
+		StartedAt: s.startedAt,
+	}, nil
 }
 	
 // --- facade methods (one per RPC, delegate to subpackage) ---

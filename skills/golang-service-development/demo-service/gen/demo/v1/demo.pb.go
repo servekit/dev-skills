@@ -26,7 +26,7 @@ const (
 
 // DemoStatus is the lifecycle state of a Demo record.
 //
-// Conventions (see golang-service-development skill §6):
+// Conventions (see golang-service-development skill, enum.md):
 //   - Enums live in proto, not in Go source.
 //   - DB stores the underlying int32; cast via Go type assertion
 //     (demov1.DemoStatus(i) / int32(e)). proto also generates String(),
@@ -494,6 +494,85 @@ func (x *DeleteDemoRequest) GetId() int64 {
 	return 0
 }
 
+// Pong is the health-check response — only public, non-sensitive info
+// (service name, build version, status, timestamps). Never include internal
+// addresses, IPs, env vars, secrets, or dependency topology here.
+type Pong struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Service       string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`                       // service name, e.g. "demo-service"
+	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`                       // build version (-ldflags injected; "dev" by default)
+	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`                         // "SERVING" when serving normally
+	Now           int64                  `protobuf:"varint,4,opt,name=now,proto3" json:"now,omitempty"`                              // server time, Unix millis
+	StartedAt     int64                  `protobuf:"varint,5,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"` // process start time, Unix millis (client computes uptime)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Pong) Reset() {
+	*x = Pong{}
+	mi := &file_demo_v1_demo_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Pong) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Pong) ProtoMessage() {}
+
+func (x *Pong) ProtoReflect() protoreflect.Message {
+	mi := &file_demo_v1_demo_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Pong.ProtoReflect.Descriptor instead.
+func (*Pong) Descriptor() ([]byte, []int) {
+	return file_demo_v1_demo_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *Pong) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+func (x *Pong) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *Pong) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *Pong) GetNow() int64 {
+	if x != nil {
+		return x.Now
+	}
+	return 0
+}
+
+func (x *Pong) GetStartedAt() int64 {
+	if x != nil {
+		return x.StartedAt
+	}
+	return 0
+}
+
 var File_demo_v1_demo_proto protoreflect.FileDescriptor
 
 const file_demo_v1_demo_proto_rawDesc = "" +
@@ -527,13 +606,21 @@ const file_demo_v1_demo_proto_rawDesc = "" +
 	"\vdescription\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03R\vdescription\x125\n" +
 	"\x06status\x18\x04 \x01(\x0e2\x13.demo.v1.DemoStatusB\b\xbaH\x05\x82\x01\x02\x10\x01R\x06status\",\n" +
 	"\x11DeleteDemoRequest\x12\x17\n" +
-	"\x02id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x02id*[\n" +
+	"\x02id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x02id\"\x83\x01\n" +
+	"\x04Pong\x12\x18\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\tR\aversion\x12\x16\n" +
+	"\x06status\x18\x03 \x01(\tR\x06status\x12\x10\n" +
+	"\x03now\x18\x04 \x01(\x03R\x03now\x12\x1d\n" +
+	"\n" +
+	"started_at\x18\x05 \x01(\x03R\tstartedAt*[\n" +
 	"\n" +
 	"DemoStatus\x12\x1b\n" +
 	"\x17DEMO_STATUS_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12DEMO_STATUS_ACTIVE\x10\x01\x12\x18\n" +
-	"\x14DEMO_STATUS_ARCHIVED\x10\x022\xac\x03\n" +
-	"\vDemoService\x12M\n" +
+	"\x14DEMO_STATUS_ARCHIVED\x10\x022\xea\x03\n" +
+	"\vDemoService\x12<\n" +
+	"\x04Ping\x12\x16.google.protobuf.Empty\x1a\r.demo.v1.Pong\"\r\x82\xd3\xe4\x93\x02\a\x12\x05/ping\x12M\n" +
 	"\n" +
 	"CreateDemo\x12\x1a.demo.v1.CreateDemoRequest\x1a\r.demo.v1.Demo\"\x14\x82\xd3\xe4\x93\x02\x0e:\x01*\"\t/v1/demos\x12I\n" +
 	"\aGetDemo\x12\x17.demo.v1.GetDemoRequest\x1a\r.demo.v1.Demo\"\x16\x82\xd3\xe4\x93\x02\x10\x12\x0e/v1/demos/{id}\x12U\n" +
@@ -557,7 +644,7 @@ func file_demo_v1_demo_proto_rawDescGZIP() []byte {
 }
 
 var file_demo_v1_demo_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_demo_v1_demo_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_demo_v1_demo_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_demo_v1_demo_proto_goTypes = []any{
 	(DemoStatus)(0),           // 0: demo.v1.DemoStatus
 	(*Demo)(nil),              // 1: demo.v1.Demo
@@ -567,28 +654,31 @@ var file_demo_v1_demo_proto_goTypes = []any{
 	(*ListDemosResponse)(nil), // 5: demo.v1.ListDemosResponse
 	(*UpdateDemoRequest)(nil), // 6: demo.v1.UpdateDemoRequest
 	(*DeleteDemoRequest)(nil), // 7: demo.v1.DeleteDemoRequest
-	(*emptypb.Empty)(nil),     // 8: google.protobuf.Empty
+	(*Pong)(nil),              // 8: demo.v1.Pong
+	(*emptypb.Empty)(nil),     // 9: google.protobuf.Empty
 }
 var file_demo_v1_demo_proto_depIdxs = []int32{
-	0, // 0: demo.v1.Demo.status:type_name -> demo.v1.DemoStatus
-	0, // 1: demo.v1.CreateDemoRequest.status:type_name -> demo.v1.DemoStatus
-	1, // 2: demo.v1.ListDemosResponse.demos:type_name -> demo.v1.Demo
-	0, // 3: demo.v1.UpdateDemoRequest.status:type_name -> demo.v1.DemoStatus
-	2, // 4: demo.v1.DemoService.CreateDemo:input_type -> demo.v1.CreateDemoRequest
-	3, // 5: demo.v1.DemoService.GetDemo:input_type -> demo.v1.GetDemoRequest
-	4, // 6: demo.v1.DemoService.ListDemos:input_type -> demo.v1.ListDemosRequest
-	6, // 7: demo.v1.DemoService.UpdateDemo:input_type -> demo.v1.UpdateDemoRequest
-	7, // 8: demo.v1.DemoService.DeleteDemo:input_type -> demo.v1.DeleteDemoRequest
-	1, // 9: demo.v1.DemoService.CreateDemo:output_type -> demo.v1.Demo
-	1, // 10: demo.v1.DemoService.GetDemo:output_type -> demo.v1.Demo
-	5, // 11: demo.v1.DemoService.ListDemos:output_type -> demo.v1.ListDemosResponse
-	1, // 12: demo.v1.DemoService.UpdateDemo:output_type -> demo.v1.Demo
-	8, // 13: demo.v1.DemoService.DeleteDemo:output_type -> google.protobuf.Empty
-	9, // [9:14] is the sub-list for method output_type
-	4, // [4:9] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	0,  // 0: demo.v1.Demo.status:type_name -> demo.v1.DemoStatus
+	0,  // 1: demo.v1.CreateDemoRequest.status:type_name -> demo.v1.DemoStatus
+	1,  // 2: demo.v1.ListDemosResponse.demos:type_name -> demo.v1.Demo
+	0,  // 3: demo.v1.UpdateDemoRequest.status:type_name -> demo.v1.DemoStatus
+	9,  // 4: demo.v1.DemoService.Ping:input_type -> google.protobuf.Empty
+	2,  // 5: demo.v1.DemoService.CreateDemo:input_type -> demo.v1.CreateDemoRequest
+	3,  // 6: demo.v1.DemoService.GetDemo:input_type -> demo.v1.GetDemoRequest
+	4,  // 7: demo.v1.DemoService.ListDemos:input_type -> demo.v1.ListDemosRequest
+	6,  // 8: demo.v1.DemoService.UpdateDemo:input_type -> demo.v1.UpdateDemoRequest
+	7,  // 9: demo.v1.DemoService.DeleteDemo:input_type -> demo.v1.DeleteDemoRequest
+	8,  // 10: demo.v1.DemoService.Ping:output_type -> demo.v1.Pong
+	1,  // 11: demo.v1.DemoService.CreateDemo:output_type -> demo.v1.Demo
+	1,  // 12: demo.v1.DemoService.GetDemo:output_type -> demo.v1.Demo
+	5,  // 13: demo.v1.DemoService.ListDemos:output_type -> demo.v1.ListDemosResponse
+	1,  // 14: demo.v1.DemoService.UpdateDemo:output_type -> demo.v1.Demo
+	9,  // 15: demo.v1.DemoService.DeleteDemo:output_type -> google.protobuf.Empty
+	10, // [10:16] is the sub-list for method output_type
+	4,  // [4:10] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_demo_v1_demo_proto_init() }
@@ -602,7 +692,7 @@ func file_demo_v1_demo_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_demo_v1_demo_proto_rawDesc), len(file_demo_v1_demo_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
