@@ -14,7 +14,8 @@ import (
 // this slice directly.
 func AllModels() []any {
 	return []any{
-		&{{.Pascal}}{},
+		{{if .Example}}&{{.Pascal}}{},
+		{{end}}
 	}
 }
 

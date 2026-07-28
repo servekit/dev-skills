@@ -1,4 +1,4 @@
-.PHONY: all build run test lint fmt vet generate proto migrate tidy regenerate
+.PHONY: all build run test lint fmt vet generate migrate proto tidy regenerate
 
 # Published binary name. Override to ship under a different name without
 # touching the source tree, e.g. `make build BIN_NAME=msgsvc`.
@@ -6,7 +6,7 @@
 BIN_NAME := demo-service
 CMD_DIR  := cmd/server
 
-## build: Build the $(BIN_NAME) binary (server + migrate in one)
+## build: Build the $(BIN_NAME) binary
 build:
 	go build -o bin/$(BIN_NAME) ./$(CMD_DIR)/
 

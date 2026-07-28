@@ -3,8 +3,14 @@
 //
 // Usage:
 //
-//	go run ./scaffold <name> [target-parent-dir]
+//	go run ./scaffold [--force] [capability flags] <name> [target-parent-dir]
 //	go run ./scaffold --force demo   # regenerate demo-service/ from templates
+//
+// Capability flags default to ALL OFF — a minimal shell that runs without
+// Postgres. --example implies --db (a CRUD domain needs a database).
+//
+//	go run ./scaffold ping                  # minimal: empty proto service, no DB
+//	go run ./scaffold pay --db --example    # CRUD service with Postgres
 //
 // Templates use Go text/template syntax. Available variables:
 //
@@ -14,6 +20,7 @@
 //	{{.Plural}}      lowercase plural  (e.g., "users")
 //	{{.NameUpper}}   SCREAMING_SNAKE   (e.g., "USER")
 //	{{.EnvPrefix}}   configx env prefix (e.g., "USER_SERVICE")
+//	{{.DB}} {{.Redis}} {{.Thirdcall}} {{.Example}}  bool capability switches
 //
 // Template function:
 //
@@ -22,7 +29,8 @@
 //
 // File paths in templates/ may also use these variables — they get rendered
 // before writing (so api/proto/{{.Name}}/v1/{{.Name}}.proto.tmpl becomes
-// api/proto/user/v1/user.proto).
+// api/proto/user/v1/user.proto). Some files are skipped based on capability
+// switches; see skipRules below.
 package main
 
 import (
@@ -52,6 +60,14 @@ type Spec struct {
 	// EnvPrefix is the configx env prefix (NAME_SERVICE), used by configx
 	// WithEnvPrefix and as the ${VAR} namespace in config.example.yaml.
 	EnvPrefix string // "USER_SERVICE"
+
+	// Capability switches (default all false = minimal shell that runs
+	// without Postgres). See skipRules for file-level gating and the mixed
+	// templates for internal {{if .X}} fragments.
+	DB        bool
+	Redis     bool
+	Thirdcall bool
+	Example   bool
 }
 
 var nameRe = regexp.MustCompile(`^[a-z][a-z0-9]*$`)
@@ -104,11 +120,31 @@ func repoRootFromCwd() (string, error) {
 
 func main() {
 	force := false
+	var db, redis, thirdcall, example bool
 	args := []string{}
 	for _, a := range os.Args[1:] {
 		switch {
 		case a == "--force" || a == "-f":
 			force = true
+		case a == "--db":
+			db = true
+		case a == "--no-db":
+			db = false
+		case a == "--redis":
+			redis = true
+		case a == "--no-redis":
+			redis = false
+		case a == "--thirdcall":
+			thirdcall = true
+		case a == "--no-thirdcall":
+			thirdcall = false
+		case a == "--example":
+			example = true
+		case a == "--no-example":
+			example = false
+		case a == "-h" || a == "--help":
+			printUsage()
+			os.Exit(0)
 		case strings.HasPrefix(a, "-"):
 			fail(fmt.Errorf("unknown flag %q", a))
 		default:
@@ -116,9 +152,17 @@ func main() {
 		}
 	}
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: scaffold [--force] <name> [target-parent-dir]")
-		fmt.Fprintln(os.Stderr, "  --force  overwrite target if it exists (used for regenerating demo-service)")
+		printUsage()
 		os.Exit(2)
+	}
+
+	// --example implies --db (a CRUD domain needs a database). Enforce the
+	// invariant here — the single source of truth — so templates can use
+	// {{if .DB}} and {{if .Example}} independently without guarding every
+	// combination.
+	if example && !db {
+		db = true
+		fmt.Fprintln(os.Stderr, "note: --example implies --db (enabling database)")
 	}
 
 	repoRoot, err := repoRootFromCwd()
@@ -137,6 +181,10 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+	spec.DB = db
+	spec.Redis = redis
+	spec.Thirdcall = thirdcall
+	spec.Example = example
 
 	if force {
 		if err := os.RemoveAll(target); err != nil {
@@ -161,13 +209,29 @@ func main() {
 	fmt.Printf("  cd %s\n", target)
 	fmt.Println("  make tidy        # generates go.sum")
 	fmt.Println("  make proto       # generates gen/")
-	fmt.Println("  make generate    # generates internal/store/generated/")
-	fmt.Println("  make migrate     # creates DB tables (needs PostgreSQL)")
-	fmt.Println("  make run         # local: cp .env.example .env first (edit DATABASE_HOST -> localhost)")
+	if spec.DB {
+		fmt.Println("  make generate    # generates internal/store/generated/")
+		fmt.Println("  make migrate     # creates DB tables (needs PostgreSQL)")
+		fmt.Println("  make run         # local: cp .env.example .env first (edit DATABASE_HOST -> localhost)")
+	} else {
+		fmt.Println("  make run         # local: minimal shell, runs without a database")
+	}
 	fmt.Println()
 	fmt.Println("Docker (Dockerfile + docker-compose.yaml generated):")
 	fmt.Println("  make docker-up         # build + start the compose stack")
 	fmt.Println("    # behind a firewall? set GOPROXY=https://goproxy.cn,direct in .env first")
+}
+
+func printUsage() {
+	fmt.Fprintln(os.Stderr, "usage: scaffold [--force] [capability flags] <name> [target-parent-dir]")
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "capability flags (default: all off = minimal shell that runs without Postgres):")
+	fmt.Fprintln(os.Stderr, "  --db / --no-db                PostgreSQL via dbx (postgres-only; go-common has no mysql path)")
+	fmt.Fprintln(os.Stderr, "  --redis / --no-redis          Redis via redisx")
+	fmt.Fprintln(os.Stderr, "  --thirdcall / --no-thirdcall  thirdcall demo placeholder")
+	fmt.Fprintln(os.Stderr, "  --example / --no-example      CRUD starter domain (implies --db)")
+	fmt.Fprintln(os.Stderr)
+	fmt.Fprintln(os.Stderr, "  --force                       overwrite target if it exists (used for regenerating demo-service)")
 }
 
 func fail(err error) {
@@ -175,8 +239,46 @@ func fail(err error) {
 	os.Exit(1)
 }
 
+// skipRules maps a raw template path (relative to templates/, no .tmpl suffix,
+// with the {{.Name}} literal intact) to the Spec capability that gates it.
+// The {{.Name}} literal in the path is the signal — e.g.
+// internal/store/models/{{.Name}}.go is obviously example-gated. Paths not in
+// this table are always rendered. A path is matched BEFORE path rendering.
+var skipRules = map[string]string{
+	// DB-only (migrate plumbing + gorm gen dir).
+	"cmd/server/migrate.go":              "DB",
+	"cmd/server/migrate_test.go":         "DB",
+	"internal/store/generated/README.md": "DB",
+	"internal/store/models/register.go":  "DB",
+	// Example-only (the {{.Pascal}} CRUD domain).
+	"internal/service/{{.Name}}/{{.Name}}.go": "Example",
+	"internal/store/models/{{.Name}}.go":      "Example",
+	"internal/store/dal/{{.Name}}.go":         "Example",
+	"pkg/xcodes/{{.Name}}.go":                 "Example",
+	// Thirdcall-only.
+	"pkg/thirdcall/demo_service.go":            "Thirdcall",
+	"internal/thirdcall/demoservice/grpc.go":   "Thirdcall",
+	"internal/thirdcall/demoservice/module.go": "Thirdcall",
+}
+
+// skipFor reports whether the template at rawRel should be skipped for spec.
+func skipFor(rawRel string, spec Spec) bool {
+	switch skipRules[rawRel] {
+	case "DB":
+		return !spec.DB
+	case "Redis":
+		return !spec.Redis
+	case "Thirdcall":
+		return !spec.Thirdcall
+	case "Example":
+		return !spec.Example
+	}
+	return false
+}
+
 // renderAll walks templates/ and writes each .tmpl file to target/, rendering
-// both path and content against spec.
+// both path and content against spec. Files gated by a capability that is off
+// are skipped (see skipRules).
 func renderAll(spec Spec, target string) error {
 	return fs.WalkDir(templatesFS, "templates", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -191,6 +293,12 @@ func renderAll(spec Spec, target string) error {
 			return nil
 		}
 		rel = strings.TrimSuffix(rel, ".tmpl")
+
+		// Skip files whose capability is off. Match the raw rel (before path
+		// rendering) so the {{.Name}} literal in skipRules aligns.
+		if skipFor(rel, spec) {
+			return nil
+		}
 
 		// Render path (file path may contain {{.Name}}).
 		outRel, err := renderString("path", rel, spec)
@@ -239,14 +347,20 @@ func renderString(name, src string, spec Spec) (string, error) {
 // packaging (Dockerfile, docker-compose.yaml, .dockerignore, Makefile targets)
 // to the freshly generated service. Best-effort: if the renderer is absent
 // (docker skill not installed) or fails, the Go skeleton is still complete and
-// the user can run render.sh manually later.
+// the user can run render.sh manually later. --database and --redis are driven
+// by the capability switches so the compose stack matches the generated code.
 func renderDocker(spec Spec, target, repoRoot string) {
 	renderSh := filepath.Join(repoRoot, "skills", "golang-service-docker", "scripts", "render.sh")
 	if _, err := os.Stat(renderSh); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: %s not found; skipping Docker packaging\n", renderSh)
 		return
 	}
-	cmd := exec.Command("bash", renderSh,
+	dbKind := "none"
+	if spec.DB {
+		dbKind = "postgres"
+	}
+	dockerArgs := []string{
+		renderSh,
 		"--target", target,
 		"--service-name", spec.Module,
 		"--binary-name", spec.Module,
@@ -254,10 +368,14 @@ func renderDocker(spec Spec, target, repoRoot string) {
 		"--grpc-port", "9000",
 		"--http-port", "8080",
 		"--env-prefix", spec.EnvPrefix,
-		"--database", "postgres",
+		"--database", dbKind,
 		"--config-mode", "copy",
 		"--config-source", "config.example.yaml",
-	)
+	}
+	if spec.Redis {
+		dockerArgs = append(dockerArgs, "--redis")
+	}
+	cmd := exec.Command("bash", dockerArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

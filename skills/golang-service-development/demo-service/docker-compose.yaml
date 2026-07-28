@@ -21,6 +21,10 @@ services:
       - DEMO_SERVICE_DATABASE_PASSWORD=${DEMO_SERVICE_DATABASE_PASSWORD:-postgres}
       - DEMO_SERVICE_DATABASE_DBNAME=${DEMO_SERVICE_DATABASE_DBNAME:-demo_service}
       - DEMO_SERVICE_DATABASE_SSLMODE=${DEMO_SERVICE_DATABASE_SSLMODE:-disable}
+      - DEMO_SERVICE_REDIS_ADDR=${DEMO_SERVICE_REDIS_ADDR:-redis:6379}
+      - DEMO_SERVICE_REDIS_USERNAME=${DEMO_SERVICE_REDIS_USERNAME:-}
+      - DEMO_SERVICE_REDIS_PASSWORD=${DEMO_SERVICE_REDIS_PASSWORD:-}
+      - DEMO_SERVICE_REDIS_DB=${DEMO_SERVICE_REDIS_DB:-0}
       - DEMO_SERVICE_CRON_TIMEZONE=${DEMO_SERVICE_CRON_TIMEZONE:-Asia/Shanghai}
       - DEMO_SERVICE_DATABASE_CONN_MAX_LIFETIME=${DEMO_SERVICE_DATABASE_CONN_MAX_LIFETIME:-5m}
       - DEMO_SERVICE_DATABASE_MAX_IDLE_CONNS=${DEMO_SERVICE_DATABASE_MAX_IDLE_CONNS:-10}
@@ -36,6 +40,8 @@ services:
       - "${HOST_HTTP_PORT:-8080}:8080"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "grpc_health_probe", "-addr=127.0.0.1:9000", "-connect-timeout=2s"]
@@ -62,7 +68,21 @@ services:
       start_period: ${POSTGRES_HEALTHCHECK_START_PERIOD:-10s}
 
 
+  redis:
+    image: ${REDIS_IMAGE:-redis:7-alpine}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: ${REDIS_HEALTHCHECK_INTERVAL:-3s}
+      timeout: ${REDIS_HEALTHCHECK_TIMEOUT:-3s}
+      retries: ${REDIS_HEALTHCHECK_RETRIES:-20}
+      start_period: ${REDIS_HEALTHCHECK_START_PERIOD:-3s}
 
 volumes:
   pgdata:
     name: ${POSTGRES_VOLUME:-demo-service-pgdata}
+  redisdata:
+    name: ${REDIS_VOLUME:-demo-service-redisdata}

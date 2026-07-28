@@ -22,6 +22,12 @@ database:
   max_idle_conns: ${DEMO_SERVICE_DATABASE_MAX_IDLE_CONNS}
   conn_max_lifetime: ${DEMO_SERVICE_DATABASE_CONN_MAX_LIFETIME}
 
+redis:
+  addr: ${DEMO_SERVICE_REDIS_ADDR}
+  username: ${DEMO_SERVICE_REDIS_USERNAME}
+  password: ${DEMO_SERVICE_REDIS_PASSWORD}
+  db: ${DEMO_SERVICE_REDIS_DB}
+
 third_party:
   demo:
     mode: ${DEMO_SERVICE_THIRD_PARTY_DEMO_MODE}

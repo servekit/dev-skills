@@ -7,66 +7,63 @@
 //     file does NOT contain CRUD implementations — only delegations.
 //   - handler calls service.X; service.X is a one-line facade that calls
 //     s.<domain>.X in the subpackage. handler never imports the subpackage.
-//   - Service methods take proto types DIRECTLY (e.g., *{{.Name}}v1.Create{{.Pascal}}Request)
-//     and return proto types — no intermediate Go structs at any layer.
-//   - Resources (db, demo) are constructed here from cfg (or injected via
-//     option) and passed to subpackage constructors. The subpackages do NOT
-//     manage resource lifecycle — this Service does via lifecycle.Manager.
+//   - Service methods take proto types DIRECTLY and return proto types — no
+//     intermediate Go structs at any layer.
+//   - Resources (db, redis, third-party services) are constructed here from
+//     cfg (or injected via option) and passed to subpackage constructors. The
+//     subpackages do NOT manage resource lifecycle — this Service does via
+//     lifecycle.Manager.
 //
 // Lifecycle:
-//   - Service holds a *lifecycle.Manager that owns all "heavy" resources
-//     (DB, DemoService, future cron/mqtt/etc). Each owned resource is wrapped as
-//     a lifecycle.Stopper and registered with the manager; New does NOT close
-//     them on success, Stop stops all of them in reverse registration order.
-//   - Injected resources (via option.WithDB etc.) are NOT registered — caller
-//     owns their lifecycle.
+//   - Service holds a *lifecycle.Manager that owns all "heavy" resources.
+//     Each owned resource is wrapped as a lifecycle.Stopper and registered
+//     with the manager; Stop stops them in reverse registration order.
+//   - Injected resources (via option.WithX) are NOT registered — caller owns
+//     their lifecycle.
 //   - Handler exposes Start/Stop by delegating to Service, so in-process
 //     module users get one-call lifecycle management.
 //   - Cleanup-path close errors are logged via slog.Warn rather than returned
 //     (Stopper-registered funcs run inside lifecycle.Manager; their errors
-//     would be lost anyway since StopFunc drops them). This is the only place
-//     service code logs directly — business code still returns errors.
+//     would be lost anyway since StopFunc drops them).
 package service
 
 import (
-	"context"
+	{{if .Example}}"context"{{end}}
 	"errors"
 	"fmt"
-	"log/slog"
-
+	{{if or .DB .Redis .Thirdcall}}"log/slog"{{end}}
+	{{if .Redis}}
+	"github.com/redis/go-redis/v9"
+	{{end}}{{if .DB}}
 	"gorm.io/gorm"
-
-	{{.Name}}v1 "{{.Module}}/gen/{{.Name}}/v1"
+	{{end}}{{if .Example}}{{.Name}}v1 "{{.Module}}/gen/{{.Name}}/v1"{{end}}
 	"{{.Module}}/internal/jobs"
-	"{{.Module}}/internal/service/{{.Name}}"
+	{{if .Example}}"{{.Module}}/internal/service/{{.Name}}"{{end}}
 	"{{.Module}}/pkg/config"
 	"{{.Module}}/pkg/option"
-	"{{.Module}}/pkg/thirdcall"
+	{{if .Thirdcall}}"{{.Module}}/pkg/thirdcall"{{end}}
 
 	"github.com/servekit/go-common/cronx"
-	"github.com/servekit/go-common/dbx"
+	{{if .DB}}"github.com/servekit/go-common/dbx"{{end}}
+	{{if .Redis}}"github.com/servekit/go-common/redisx"{{end}}
 	"github.com/servekit/go-common/lifecycle"
 )
 
 // Service holds {{.Module}} business state.
 //
-// db and demoSvc are convenience references kept on the root Service for
-// resolveXxx helpers — they point at the same instances tracked by mgr and
-// injected into subpackages. Each domain lives in its own subpackage field
-// ({{.Name}} *{{.Name}}.Service); subpackages do NOT reference this struct.
-//
-// Named demoSvc (not demo) to avoid colliding with the {{.Name}} domain
-// field below when {{.Name}} happens to be "demo". Same pattern applies to
-// any third-party service whose name matches a domain name.
+// Resource fields (db, redis, demoSvc) are convenience references kept on the
+// root Service for resolveXxx helpers — they point at the same instances
+// tracked by mgr and injected into subpackages. Each domain lives in its own
+// subpackage field ({{.Name}} *{{.Name}}.Service); subpackages do NOT
+// reference this struct.
 type Service struct {
 	cfg *config.Config
 	mgr *lifecycle.Manager
-
-	db      *gorm.DB
-	demoSvc thirdcall.DemoService
-
-	// One field per domain subpackage. Add fields here as new domains appear.
-	{{.Name}} *{{.Name}}.Service
+	{{if .DB}}db *gorm.DB
+	{{end}}{{if .Redis}}redis *redis.Client
+	{{end}}{{if .Thirdcall}}demoSvc thirdcall.DemoService
+	{{end}}{{if .Example}}// One field per domain subpackage. Add fields here as new domains appear.
+	{{.Name}} *{{.Name}}.Service{{end}}
 }
 
 // New constructs a Service from config and functional options.
@@ -76,28 +73,29 @@ type Service struct {
 // stop them in reverse order. Injected resources are NOT registered — caller
 // owns their lifecycle.
 //
-// After resources are resolved, each domain subpackage is constructed with
-// the resolved db. Subpackages do NOT participate in lifecycle.Manager
-// (they have no goroutines of their own); their resources are owned by this
-// Service via mgr.
-//
 // On partial failure (any resolve returns an error), already-registered
 // components are stopped via mgr.Stop() before returning the error.
 func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 	o := option.Apply(opts...)
+	_ = o // injection seam; enabled resources read o.X below
 	mgr := lifecycle.NewManager()
-
+	{{if .DB}}
 	db, err := resolveDB(cfg, o.DB, mgr)
 	if err != nil {
-		// mgr has nothing registered yet, but Stop is still well-defined
-		// (returns nil). Surface any error from Stop alongside the resolve
-		// error in case future refactors add components before resolveDB.
 		if cerr := mgr.Stop(); cerr != nil {
 			err = errors.Join(err, cerr)
 		}
 		return nil, err
 	}
-
+	{{end}}{{if .Redis}}
+	redis, err := resolveRedis(cfg, o.Redis, mgr)
+	if err != nil {
+		if cerr := mgr.Stop(); cerr != nil {
+			err = errors.Join(err, fmt.Errorf("rollback: %w", cerr))
+		}
+		return nil, err
+	}
+	{{end}}{{if .Thirdcall}}
 	demoSvc, err := resolveDemo(cfg, o.DemoService, mgr)
 	if err != nil {
 		if cerr := mgr.Stop(); cerr != nil {
@@ -105,21 +103,19 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 		}
 		return nil, err
 	}
-
+	{{end}}
 	svc := &Service{
 		cfg: cfg,
 		mgr: mgr,
-		db:  db,
-		demoSvc: demoSvc,
-
-		// Construct each domain subpackage with injected resources.
-		{{.Name}}: {{.Name}}.New(db),
+		{{if .DB}}db: db,
+		{{end}}{{if .Redis}}redis: redis,
+		{{end}}{{if .Thirdcall}}demoSvc: demoSvc,
+		{{end}}{{if .Example}}{{.Name}}: {{.Name}}.New(db),{{end}}
 	}
 
 	// jobs.Scheduler owns the cron instance; setupJobs builds it, registers
 	// it on mgr, and wires periodic jobs (empty by default — add jobs inside
-	// setupJobs as scheduler.AddFunc calls). See golang-service-development
-	// skill §10 for the jobs pattern.
+	// setupJobs as scheduler.AddFunc calls). See architecture.md (jobs.md).
 	if err := svc.setupJobs(); err != nil {
 		if cerr := mgr.Stop(); cerr != nil {
 			err = errors.Join(err, fmt.Errorf("rollback: %w", cerr))
@@ -130,14 +126,12 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 	return svc, nil
 }
 
-// Start starts all owned components concurrently. Returns the first error
-// reported by any component's Start, or nil if all succeeded.
+// Start starts all owned components concurrently.
 func (s *Service) Start() error { return s.mgr.Start() }
 
-// Stop stops all owned components in reverse registration order. Errors are
-// aggregated so a failure in one component doesn't mask others.
+// Stop stops all owned components in reverse registration order.
 func (s *Service) Stop() error { return s.mgr.Stop() }
-
+	{{if .Example}}
 // --- facade methods (one per RPC, delegate to subpackage) ---
 //
 // handler calls these; they are one-line delegations to the corresponding
@@ -145,39 +139,32 @@ func (s *Service) Stop() error { return s.mgr.Stop() }
 // Cross-domain orchestration RPCs also live here (compose multiple
 // subpackages inline).
 
-// Create{{.Pascal}} delegates to the {{.Name}} subpackage.
 func (s *Service) Create{{.Pascal}}(ctx context.Context, req *{{.Name}}v1.Create{{.Pascal}}Request) (*{{.Name}}v1.{{.Pascal}}, error) {
 	return s.{{.Name}}.Create{{.Pascal}}(ctx, req)
 }
 
-// Get{{.Pascal}} delegates to the {{.Name}} subpackage.
 func (s *Service) Get{{.Pascal}}(ctx context.Context, id int64) (*{{.Name}}v1.{{.Pascal}}, error) {
 	return s.{{.Name}}.Get{{.Pascal}}(ctx, id)
 }
 
-// List{{.Pascal}}s delegates to the {{.Name}} subpackage.
 func (s *Service) List{{.Pascal}}s(ctx context.Context, pageSize int, pageToken string) (*{{.Name}}v1.List{{.Pascal}}sResponse, error) {
 	return s.{{.Name}}.List{{.Pascal}}s(ctx, pageSize, pageToken)
 }
 
-// Update{{.Pascal}} delegates to the {{.Name}} subpackage.
 func (s *Service) Update{{.Pascal}}(ctx context.Context, req *{{.Name}}v1.Update{{.Pascal}}Request) (*{{.Name}}v1.{{.Pascal}}, error) {
 	return s.{{.Name}}.Update{{.Pascal}}(ctx, req)
 }
 
-// Delete{{.Pascal}} delegates to the {{.Name}} subpackage.
 func (s *Service) Delete{{.Pascal}}(ctx context.Context, id int64) error {
 	return s.{{.Name}}.Delete{{.Pascal}}(ctx, id)
 }
-
+	{{end}}
 // --- internal helpers ---
 
-// setupJobs builds the jobs.Scheduler, registers it on s.mgr (so its
-// lifecycle is managed alongside db/demo), and wires periodic jobs.
-// Signature is intentionally receiver-only: future jobs are added inside
-// this method as additional scheduler.AddFunc calls — callers never need
-// to extend a parameter list. Timezone default lives in config.CronConfig's
-// default tag.
+// setupJobs builds the jobs.Scheduler, registers it on s.mgr, and wires
+// periodic jobs. Signature is intentionally receiver-only: future jobs are
+// added inside this method as scheduler.AddFunc calls. Timezone default lives
+// in config.CronConfig's default tag.
 func (s *Service) setupJobs() error {
 	scheduler, err := jobs.New(&jobs.Deps{
 		Config: &cronx.Config{
@@ -189,21 +176,9 @@ func (s *Service) setupJobs() error {
 		return fmt.Errorf("init jobs: %w", err)
 	}
 	s.mgr.Add("jobs", scheduler)
-
-	// Register periodic jobs here. Example shape (uncomment + adapt):
-	//
-	//   if err := scheduler.AddFunc("*/5 * * * *", func() {
-	//       ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	//       defer cancel()
-	//       if err := s.{{.Name}}.SomePeriodicOp(ctx); err != nil {
-	//           slog.Error("{{.Name}} periodic op", "error", err)
-	//       }
-	//   }); err != nil {
-	//       return fmt.Errorf("register {{.Name}} periodic op: %w", err)
-	//   }
 	return nil
 }
-
+	{{if .DB}}
 // resolveDB returns the *gorm.DB to use. If the caller injected one via
 // WithDB, it's returned as-is (caller owns lifecycle). Otherwise a new one
 // is built from cfg and registered with mgr as a Stopper.
@@ -227,14 +202,29 @@ func resolveDB(cfg *config.Config, injected *gorm.DB, mgr *lifecycle.Manager) (*
 	}))
 	return db, nil
 }
-
+	{{end}}{{if .Redis}}
+// resolveRedis returns the *redis.Client to use. If the caller injected one
+// via WithRedis, it's returned as-is (caller owns lifecycle). Otherwise a new
+// one is built from cfg.Redis and registered with mgr as a Stopper.
+func resolveRedis(cfg *config.Config, injected *redis.Client, mgr *lifecycle.Manager) (*redis.Client, error) {
+	if injected != nil {
+		return injected, nil
+	}
+	rdb, err := redisx.New(cfg.Redis)
+	if err != nil {
+		return nil, fmt.Errorf("init redis: %w", err)
+	}
+	mgr.AddStopper("redis", lifecycle.StopFunc(func() {
+		if err := rdb.Close(); err != nil {
+			slog.Warn("close redis", "error", err)
+		}
+	}))
+	return rdb, nil
+}
+	{{end}}{{if .Thirdcall}}
 // resolveDemo returns the DemoService to use. If the caller injected one via
 // WithDemoService, it's returned as-is. Otherwise a new one is built from cfg
 // and — if it implements Close() — registered with mgr as a Stopper.
-//
-// The module-mode demo backend has no resources to Close, so it is NOT
-// registered (skipping the type assertion). The gRPC backend does, and will
-// be registered automatically when mode=grpc.
 func resolveDemo(cfg *config.Config, injected thirdcall.DemoService, mgr *lifecycle.Manager) (thirdcall.DemoService, error) {
 	if injected != nil {
 		return injected, nil
@@ -252,3 +242,4 @@ func resolveDemo(cfg *config.Config, injected thirdcall.DemoService, mgr *lifecy
 	}
 	return demo, nil
 }
+	{{end}}

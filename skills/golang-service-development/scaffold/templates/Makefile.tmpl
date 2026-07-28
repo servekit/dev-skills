@@ -1,4 +1,4 @@
-.PHONY: all build run test lint fmt vet generate proto migrate tidy regenerate
+.PHONY: all build run test lint fmt vet{{if .DB}} generate migrate{{end}} proto tidy regenerate
 
 # Published binary name. Override to ship under a different name without
 # touching the source tree, e.g. `make build BIN_NAME=msgsvc`.
@@ -6,7 +6,7 @@
 BIN_NAME := {{.Module}}
 CMD_DIR  := cmd/server
 
-## build: Build the $(BIN_NAME) binary (server + migrate in one)
+## build: Build the $(BIN_NAME) binary
 build:
 	go build -o bin/$(BIN_NAME) ./$(CMD_DIR)/
 
@@ -31,26 +31,26 @@ fmt:
 ## vet: Run go vet
 vet:
 	go vet ./...
-
+{{if .DB}}
 ## generate: Run gorm.io/cli code generation
 generate:
 	gorm gen -i ./internal/store/models -o ./internal/store/generated
-
+{{end}}
 ## proto: Generate protobuf code with buf
 proto:
 	buf generate
-
+{{if .DB}}
 ## migrate: Run database migrations (AutoMigrate) via the unified binary
 migrate:
 	@test -f config.yaml || cp config.example.yaml config.yaml
 	go run ./$(CMD_DIR) migrate
-
+{{end}}
 ## tidy: Run go mod tidy
 tidy:
 	go mod tidy
 
 ## regenerate: Re-run all codegen + tidy (call after proto/model changes or template updates)
-regenerate: proto generate tidy
+regenerate: proto{{if .DB}} generate{{end}} tidy
 
 ## all: Format, vet, lint, test
 all: fmt vet lint test

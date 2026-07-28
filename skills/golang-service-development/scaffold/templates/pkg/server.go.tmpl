@@ -83,7 +83,7 @@ func NewServer(cfg *config.Config, opts ...ServerOption) (*Server, error) {
 		func(gs *grpc.Server) {
 			{{.Name}}v1.Register{{.Pascal}}ServiceServer(gs, hdl)
 		},
-		{{.Name}}v1.Register{{.Pascal}}ServiceHandlerFromEndpoint,
+		{{if .Example}}{{.Name}}v1.Register{{.Pascal}}ServiceHandlerFromEndpoint{{else}}nil{{end}},
 		grpcx.ErrorInterceptor,
 		protovalidate_middleware.UnaryServerInterceptor(validator),
 	)

@@ -7,13 +7,13 @@ option go_package = "{{.Module}}/gen/{{.Name}}/v1;{{.Name}}servicev1";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "buf/validate/validate.proto";
-
+{{if .Example}}
 // {{.Pascal}}Status is the lifecycle state of a {{.Pascal}} record.
 //
-// Conventions (see golang-service-development skill §6):
+// Conventions (see golang-service-development skill, enum.md):
 //   - Enums live in proto, not in Go source.
 //   - DB stores the underlying int32; cast via Go type assertion
-//     (demov1.{{.Pascal}}Status(i) / int32(e)). proto also generates String(),
+//     ({{.Name}}v1.{{.Pascal}}Status(i) / int32(e)). proto also generates String(),
 //     {{.Pascal}}Status_name, {{.Pascal}}Status_value — do NOT write custom
 //     int↔enum / string↔enum helpers.
 enum {{.Pascal}}Status {
@@ -70,9 +70,9 @@ message Update{{.Pascal}}Request {
 message Delete{{.Pascal}}Request {
   int64 id = 1 [(buf.validate.field) = {int64: {gt: 0}}];
 }
-
+{{end}}
 service {{.Pascal}}Service {
-  rpc Create{{.Pascal}}(Create{{.Pascal}}Request) returns ({{.Pascal}}) {
+{{if .Example}}  rpc Create{{.Pascal}}(Create{{.Pascal}}Request) returns ({{.Pascal}}) {
     option (google.api.http) = {
       post: "/v1/{{.Plural}}"
       body: "*"
@@ -97,4 +97,4 @@ service {{.Pascal}}Service {
   rpc Delete{{.Pascal}}(Delete{{.Pascal}}Request) returns (google.protobuf.Empty) {
     option (google.api.http) = {delete: "/v1/{{.Plural}}/{id}"};
   }
-}
+{{end}}}

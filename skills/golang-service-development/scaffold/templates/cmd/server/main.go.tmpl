@@ -36,13 +36,13 @@ func main() {
 			slog.Error("serve failed", "error", err)
 			os.Exit(1)
 		}
-	case "migrate":
+{{if .DB}}	case "migrate":
 		if err := runMigrate(); err != nil {
 			slog.Error("migrate failed", "error", err)
 			os.Exit(1)
 		}
-	default:
-		fmt.Fprintf(os.Stderr, "usage: %s [serve|migrate]\n", os.Args[0])
+{{end}}	default:
+		fmt.Fprintf(os.Stderr, "usage: %s [serve{{if .DB}}|migrate{{end}}]\n", os.Args[0])
 		os.Exit(2)
 	}
 }

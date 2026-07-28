@@ -20,7 +20,7 @@ SCAFFOLD_DIR="$SKILL_ROOT/scaffold"
 if [[ "${1:-}" == "--regen-demo" ]]; then
     shift
     cd "$SCAFFOLD_DIR"
-    exec go run . --force demo "$SKILL_ROOT"
+    exec go run . --force --db --redis --thirdcall --example demo "$SKILL_ROOT"
 fi
 
 # Prefer a pre-built binary if SCAFFOLD_BIN is set; otherwise `go run`.

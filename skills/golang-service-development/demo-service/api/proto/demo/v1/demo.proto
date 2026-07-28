@@ -10,7 +10,7 @@ import "buf/validate/validate.proto";
 
 // DemoStatus is the lifecycle state of a Demo record.
 //
-// Conventions (see golang-service-development skill §6):
+// Conventions (see golang-service-development skill, enum.md):
 //   - Enums live in proto, not in Go source.
 //   - DB stores the underlying int32; cast via Go type assertion
 //     (demov1.DemoStatus(i) / int32(e)). proto also generates String(),

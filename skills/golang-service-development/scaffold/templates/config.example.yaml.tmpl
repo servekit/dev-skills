@@ -10,7 +10,7 @@
 server:
   grpc_addr: {{envvar "SERVER_GRPC_ADDR"}}
   http_addr: {{envvar "SERVER_HTTP_ADDR"}}
-
+{{if .DB}}
 database:
   host: {{envvar "DATABASE_HOST"}}
   port: {{envvar "DATABASE_PORT"}}
@@ -21,7 +21,13 @@ database:
   max_open_conns: {{envvar "DATABASE_MAX_OPEN_CONNS"}}
   max_idle_conns: {{envvar "DATABASE_MAX_IDLE_CONNS"}}
   conn_max_lifetime: {{envvar "DATABASE_CONN_MAX_LIFETIME"}}
-
+{{end}}{{if .Redis}}
+redis:
+  addr: {{envvar "REDIS_ADDR"}}
+  username: {{envvar "REDIS_USERNAME"}}
+  password: {{envvar "REDIS_PASSWORD"}}
+  db: {{envvar "REDIS_DB"}}
+{{end}}{{if .Thirdcall}}
 third_party:
   demo:
     mode: {{envvar "THIRD_PARTY_DEMO_MODE"}}
@@ -29,7 +35,7 @@ third_party:
     config:
       prefix: {{envvar "THIRD_PARTY_DEMO_CONFIG_PREFIX"}}
       max_input_len: {{envvar "THIRD_PARTY_DEMO_CONFIG_MAX_INPUT_LEN"}}
-
+{{end}}
 cron:
   timezone: {{envvar "CRON_TIMEZONE"}}
 

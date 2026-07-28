@@ -8,6 +8,7 @@ package config
 import (
 	"github.com/servekit/go-common/configx"
 	"github.com/servekit/go-common/dbx"
+	"github.com/servekit/go-common/redisx"
 	"github.com/servekit/go-common/logging"
 )
 
@@ -27,11 +28,15 @@ const (
 // pointer fields during unmarshal, so cfg.X == nil is never true — express
 // "optional dependency" via an inner Enabled bool, not pointer nil-check.
 type Config struct {
-	Server     *ServerConfig
-	Database   *dbx.Config
+	Server *ServerConfig
+	// Database is the primary relational store (wired when --db).
+	Database *dbx.Config
+	// Redis is the cache/key-value store (wired when --redis).
+	Redis *redisx.Config
+	// ThirdParty groups third-party service settings (wired when --thirdcall).
 	ThirdParty *ThirdPartyConfig
-	Cron       *CronConfig
-	Log        *logging.Config
+	Cron *CronConfig
+	Log  *logging.Config
 }
 
 // ServerConfig holds gRPC and HTTP server addresses.
@@ -49,7 +54,7 @@ type CronConfig struct {
 	// Timezone for cron expression evaluation. Defaults to Asia/Shanghai.
 	Timezone string `default:"Asia/Shanghai"`
 }
-
+	
 // ThirdPartyConfig groups all third-party service settings.
 type ThirdPartyConfig struct {
 	Demo RemoteServiceConfig[DemoServiceConfig]
@@ -57,9 +62,7 @@ type ThirdPartyConfig struct {
 
 // RemoteServiceConfig holds connection settings for a service that can run
 // in-process (module) or as a remote gRPC deployment. T is the full config
-// used in module mode. Mode has no default — each constructor decides how to
-// treat an empty value (typically by picking one mode as the implicit
-// fallback). Adding a new third-party service is one line:
+// used in module mode. Adding a new third-party service is one line:
 //
 //	type ThirdPartyConfig struct {
 //	    Demo    RemoteServiceConfig[DemoServiceConfig]
@@ -80,7 +83,7 @@ type DemoServiceConfig struct {
 	// MaxInputLen caps the length of DoDemo inputs.
 	MaxInputLen int `default:"1024"`
 }
-
+	
 // Load reads config from the standard configx locations:
 //   - /etc/demo-service/config.yaml
 //   - ./config.yaml
