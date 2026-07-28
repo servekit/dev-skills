@@ -1,12 +1,12 @@
-// Command server is the {{.Module}} gRPC + HTTP entry point, and also hosts
-// operational subcommands such as database migration.
+// Command server is the {{.Module}} gRPC + HTTP entry point.{{if .DB}}
+// It also hosts the `migrate` subcommand, which applies GORM AutoMigrate.{{end}}
 //
 // Usage:
 //
 //	{{.Module}}           # start the gRPC + HTTP server (default)
 //	{{.Module}} serve     # same as above (explicit)
-//	{{.Module}} migrate   # apply GORM AutoMigrate, then exit
-package main
+{{if .DB}}//	{{.Module}} migrate   # apply GORM AutoMigrate, then exit
+{{end}}package main
 
 import (
 	"fmt"

@@ -5,7 +5,8 @@ import (
 	"{{.Module}}/internal/service"
 	"{{.Module}}/pkg/config"
 	"{{.Module}}/pkg/handler"
-	"{{.Module}}/pkg/option"
+	"{{.Module}}/pkg/option"{{if .DB}}
+	"gorm.io/gorm"{{end}}
 )
 
 // Handler is the in-process entry point. Callers invoke proto-typed RPC
@@ -42,3 +43,14 @@ func NewModule(cfg *config.Config, opts ...option.Option) (*Handler, error) {
 	}
 	return handler.New(svc), nil
 }
+{{if .DB}}
+// Migrate applies the current schema (GORM AutoMigrate) to db. It re-exports
+// handler.Migrate at the package surface so embedders and the `migrate`
+// subcommand share one entry point:
+//
+//	{{.Name}}pkg.Migrate(parentDB)                              // before NewModule
+//	hdl, err := {{.Name}}pkg.NewModule(cfg, option.WithDB(parentDB))
+func Migrate(db *gorm.DB) error {
+	return handler.Migrate(db)
+}
+{{end}}

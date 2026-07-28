@@ -245,9 +245,12 @@ func fail(err error) {
 // internal/store/models/{{.Name}}.go is obviously example-gated. Paths not in
 // this table are always rendered. A path is matched BEFORE path rendering.
 var skipRules = map[string]string{
-	// DB-only (migrate plumbing + gorm gen dir).
+	// DB-only (migrate plumbing + gorm gen dir). Migrate lives in pkg/handler
+	// (re-exported as pkg.Migrate) so embedded module users can call it too;
+	// cmd/server/migrate.go just wires cfg + db and delegates.
 	"cmd/server/migrate.go":              "DB",
-	"cmd/server/migrate_test.go":         "DB",
+	"pkg/handler/migrate.go":             "DB",
+	"pkg/handler/migrate_test.go":        "DB",
 	"internal/store/generated/README.md": "DB",
 	"internal/store/models/register.go":  "DB",
 	// Example-only (the {{.Pascal}} CRUD domain).
