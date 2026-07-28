@@ -27,6 +27,7 @@ import (
 	"gorm.io/gorm"
 	demov1 "demo-service/gen/demo/v1"
 	"demo-service/internal/jobs"
+	"demo-service/internal/version"
 	"demo-service/internal/service/demo"
 	"demo-service/pkg/config"
 	"demo-service/pkg/option"
@@ -37,10 +38,6 @@ import (
 	"github.com/servekit/go-common/redisx"
 	"github.com/servekit/go-common/lifecycle"
 )
-
-// buildVersion is set via -ldflags at build time (e.g.
-// -X main.buildVersion=$(git rev-parse --short HEAD)); "dev" by default.
-var buildVersion = "dev"
 
 // Service holds demo-service business state.
 //
@@ -134,9 +131,14 @@ func (s *Service) Stop() error { return s.mgr.Stop() }
 // Returns only public, non-sensitive info — never internal addresses, env,
 // secrets, or dependency topology.
 func (s *Service) Ping(ctx context.Context) (*demov1.Pong, error) {
+	v := version.Get()
 	return &demov1.Pong{
 		Service:   "demo-service",
-		Version:   buildVersion,
+		Version:   v.Version,
+		GitCommit: v.GitCommit,
+		GitBranch: v.GitBranch,
+		BuildTime: v.BuildTime,
+		GoVersion: v.GoVersion,
 		Status:    "SERVING",
 		Now:       time.Now().UnixMilli(),
 		StartedAt: s.startedAt,

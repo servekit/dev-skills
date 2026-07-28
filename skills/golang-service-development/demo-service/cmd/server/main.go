@@ -19,6 +19,8 @@ import (
 
 	pkg "demo-service/pkg"
 	"demo-service/pkg/config"
+
+	"demo-service/internal/version"
 )
 
 func main() {
@@ -54,6 +56,7 @@ func runServer() error {
 		return fmt.Errorf("load config: %w", err)
 	}
 	logging.Setup(cfg.Log)
+	slog.Info("starting", "service", "demo-service", "version", version.Get().String())
 
 	srv, err := pkg.NewServer(cfg)
 	if err != nil {

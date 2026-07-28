@@ -500,10 +500,14 @@ func (x *DeleteDemoRequest) GetId() int64 {
 type Pong struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Service       string                 `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`                       // service name, e.g. "demo-service"
-	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`                       // build version (-ldflags injected; "dev" by default)
-	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`                         // "SERVING" when serving normally
-	Now           int64                  `protobuf:"varint,4,opt,name=now,proto3" json:"now,omitempty"`                              // server time, Unix millis
-	StartedAt     int64                  `protobuf:"varint,5,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"` // process start time, Unix millis (client computes uptime)
+	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`                       // semantic version (ldflags; "dev" by default)
+	GitCommit     string                 `protobuf:"bytes,3,opt,name=git_commit,json=gitCommit,proto3" json:"git_commit,omitempty"`  // short commit hash (ldflags or VCS-embedded)
+	GitBranch     string                 `protobuf:"bytes,4,opt,name=git_branch,json=gitBranch,proto3" json:"git_branch,omitempty"`  // git branch (ldflags)
+	BuildTime     string                 `protobuf:"bytes,5,opt,name=build_time,json=buildTime,proto3" json:"build_time,omitempty"`  // build time, RFC3339 UTC (ldflags)
+	GoVersion     string                 `protobuf:"bytes,6,opt,name=go_version,json=goVersion,proto3" json:"go_version,omitempty"`  // Go toolchain version (runtime, not injected)
+	Status        string                 `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"`                         // "SERVING" when serving normally
+	Now           int64                  `protobuf:"varint,8,opt,name=now,proto3" json:"now,omitempty"`                              // server time, Unix millis
+	StartedAt     int64                  `protobuf:"varint,9,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"` // process start time, Unix millis (client computes uptime)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -548,6 +552,34 @@ func (x *Pong) GetService() string {
 func (x *Pong) GetVersion() string {
 	if x != nil {
 		return x.Version
+	}
+	return ""
+}
+
+func (x *Pong) GetGitCommit() string {
+	if x != nil {
+		return x.GitCommit
+	}
+	return ""
+}
+
+func (x *Pong) GetGitBranch() string {
+	if x != nil {
+		return x.GitBranch
+	}
+	return ""
+}
+
+func (x *Pong) GetBuildTime() string {
+	if x != nil {
+		return x.BuildTime
+	}
+	return ""
+}
+
+func (x *Pong) GetGoVersion() string {
+	if x != nil {
+		return x.GoVersion
 	}
 	return ""
 }
@@ -606,14 +638,22 @@ const file_demo_v1_demo_proto_rawDesc = "" +
 	"\vdescription\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03R\vdescription\x125\n" +
 	"\x06status\x18\x04 \x01(\x0e2\x13.demo.v1.DemoStatusB\b\xbaH\x05\x82\x01\x02\x10\x01R\x06status\",\n" +
 	"\x11DeleteDemoRequest\x12\x17\n" +
-	"\x02id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x02id\"\x83\x01\n" +
+	"\x02id\x18\x01 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\x02id\"\xff\x01\n" +
 	"\x04Pong\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\tR\aversion\x12\x16\n" +
-	"\x06status\x18\x03 \x01(\tR\x06status\x12\x10\n" +
-	"\x03now\x18\x04 \x01(\x03R\x03now\x12\x1d\n" +
+	"\aversion\x18\x02 \x01(\tR\aversion\x12\x1d\n" +
 	"\n" +
-	"started_at\x18\x05 \x01(\x03R\tstartedAt*[\n" +
+	"git_commit\x18\x03 \x01(\tR\tgitCommit\x12\x1d\n" +
+	"\n" +
+	"git_branch\x18\x04 \x01(\tR\tgitBranch\x12\x1d\n" +
+	"\n" +
+	"build_time\x18\x05 \x01(\tR\tbuildTime\x12\x1d\n" +
+	"\n" +
+	"go_version\x18\x06 \x01(\tR\tgoVersion\x12\x16\n" +
+	"\x06status\x18\a \x01(\tR\x06status\x12\x10\n" +
+	"\x03now\x18\b \x01(\x03R\x03now\x12\x1d\n" +
+	"\n" +
+	"started_at\x18\t \x01(\x03R\tstartedAt*[\n" +
 	"\n" +
 	"DemoStatus\x12\x1b\n" +
 	"\x17DEMO_STATUS_UNSPECIFIED\x10\x00\x12\x16\n" +

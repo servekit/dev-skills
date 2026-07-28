@@ -27,6 +27,7 @@ import (
 	"gorm.io/gorm"
 	{{end}}{{.Name}}v1 "{{.Module}}/gen/{{.Name}}/v1"
 	"{{.Module}}/internal/jobs"
+	"{{.Module}}/internal/version"
 	{{if .Example}}"{{.Module}}/internal/service/{{.Name}}"{{end}}
 	"{{.Module}}/pkg/config"
 	"{{.Module}}/pkg/option"
@@ -37,10 +38,6 @@ import (
 	{{if .Redis}}"github.com/servekit/go-common/redisx"{{end}}
 	"github.com/servekit/go-common/lifecycle"
 )
-
-// buildVersion is set via -ldflags at build time (e.g.
-// -X main.buildVersion=$(git rev-parse --short HEAD)); "dev" by default.
-var buildVersion = "dev"
 
 // Service holds {{.Module}} business state.
 //
@@ -134,9 +131,14 @@ func (s *Service) Stop() error { return s.mgr.Stop() }
 // Returns only public, non-sensitive info — never internal addresses, env,
 // secrets, or dependency topology.
 func (s *Service) Ping(ctx context.Context) (*{{.Name}}v1.Pong, error) {
+	v := version.Get()
 	return &{{.Name}}v1.Pong{
 		Service:   "{{.Module}}",
-		Version:   buildVersion,
+		Version:   v.Version,
+		GitCommit: v.GitCommit,
+		GitBranch: v.GitBranch,
+		BuildTime: v.BuildTime,
+		GoVersion: v.GoVersion,
 		Status:    "SERVING",
 		Now:       time.Now().UnixMilli(),
 		StartedAt: s.startedAt,
