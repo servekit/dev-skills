@@ -1,0 +1,366 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "demo/v1/demo.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "DemoService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/ping": {
+      "get": {
+        "operationId": "Ping",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Pong"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "DemoService"
+        ]
+      }
+    },
+    "/v1/demos": {
+      "get": {
+        "operationId": "ListDemos",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListDemosResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageToken",
+            "description": "Exclusively-named cursor: optional opaque token returned by previous List.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "DemoService"
+        ]
+      },
+      "post": {
+        "operationId": "CreateDemo",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Demo"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateDemoRequest"
+            }
+          }
+        ],
+        "tags": [
+          "DemoService"
+        ]
+      }
+    },
+    "/v1/demos/{id}": {
+      "get": {
+        "operationId": "GetDemo",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Demo"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "DemoService"
+        ]
+      },
+      "delete": {
+        "operationId": "DeleteDemo",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "DemoService"
+        ]
+      },
+      "put": {
+        "operationId": "UpdateDemo",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Demo"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/DemoServiceUpdateDemoBody"
+            }
+          }
+        ],
+        "tags": [
+          "DemoService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "DemoServiceUpdateDemoBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/v1DemoStatus",
+          "description": "defined_only rejects values outside the enum. UNSPECIFIED (0) is allowed\nby the rule; service layer rejects it explicitly."
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1CreateDemoRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/v1DemoStatus",
+          "description": "defined_only rejects values outside the enum (e.g., 99). UNSPECIFIED (0)\nis allowed by the rule; service layer rejects it explicitly to require a\nconcrete state at creation."
+        }
+      }
+    },
+    "v1Demo": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "int64",
+          "description": "Unix milliseconds."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "int64",
+          "description": "Unix milliseconds."
+        },
+        "status": {
+          "$ref": "#/definitions/v1DemoStatus"
+        }
+      },
+      "description": "Demo represents a single record in the demo service."
+    },
+    "v1DemoStatus": {
+      "type": "string",
+      "enum": [
+        "DEMO_STATUS_UNSPECIFIED",
+        "DEMO_STATUS_ACTIVE",
+        "DEMO_STATUS_ARCHIVED"
+      ],
+      "default": "DEMO_STATUS_UNSPECIFIED",
+      "description": "DemoStatus is the lifecycle state of a Demo record.\n\nConventions (see golang-service-development skill, enum.md):\n  - Enums live in proto, not in Go source.\n  - DB stores the underlying int32; cast via Go type assertion\n    (demov1.DemoStatus(i) / int32(e)). proto also generates String(),\n    DemoStatus_name, DemoStatus_value — do NOT write custom\n    int↔enum / string↔enum helpers."
+    },
+    "v1ListDemosResponse": {
+      "type": "object",
+      "properties": {
+        "demos": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Demo"
+          }
+        },
+        "nextPageToken": {
+          "type": "string"
+        }
+      }
+    },
+    "v1Pong": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "type": "string",
+          "title": "service name, e.g. \"demo-service\""
+        },
+        "version": {
+          "type": "string",
+          "title": "semantic version (ldflags; \"dev\" by default)"
+        },
+        "gitCommit": {
+          "type": "string",
+          "title": "short commit hash (ldflags or VCS-embedded)"
+        },
+        "gitBranch": {
+          "type": "string",
+          "title": "git branch (ldflags)"
+        },
+        "buildTime": {
+          "type": "string",
+          "title": "build time, RFC3339 UTC (ldflags)"
+        },
+        "goVersion": {
+          "type": "string",
+          "title": "Go toolchain version (runtime, not injected)"
+        },
+        "status": {
+          "type": "string",
+          "title": "\"SERVING\" when serving normally"
+        },
+        "now": {
+          "type": "string",
+          "format": "int64",
+          "title": "server time, Unix millis"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "int64",
+          "title": "process start time, Unix millis (client computes uptime)"
+        }
+      },
+      "description": "Pong is the health-check response — only public, non-sensitive info\n(service name, build version, status, timestamps). Never include internal\naddresses, IPs, env vars, secrets, or dependency topology here."
+    }
+  }
+}

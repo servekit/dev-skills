@@ -14,6 +14,7 @@ description: "Sub-document of golang-service-development skill. Loaded by SKILL.
 ```
 {service_name}-service/
 ├── api/proto/{svc}/v1/         # proto 定义（路径 = package 路径）
+├── api/swagger/{svc}/v1/       # buf 生成的 Swagger 2.0 文档（committed，供前端/客户端消费）
 ├── bin/                        # 编译产物（gitignore）
 ├── cmd/
 │   └── server/                 # 服务入口：serve（默认）+ migrate 子命令（单二进制）
@@ -532,7 +533,7 @@ pkg/xcodes/
 
 `buf.yaml`：v2 格式，依赖 `protovalidate` + `googleapis`，lint 用 STANDARD（去除三个 RPC_REQUEST/RESPONSE 规则）。
 
-`buf.gen.yaml`：v2 + managed mode + `go_package_prefix: <svc>-service/gen`，三个插件：`protocolbuffers/go`、`grpc/go`、`grpc-ecosystem/gateway`。
+`buf.gen.yaml`：v2 + managed mode + `go_package_prefix: <svc>-service/gen`，四个插件：`protocolbuffers/go`、`grpc/go`、`grpc-ecosystem/gateway`（gRPC↔HTTP 网关 stub，输出 `gen/`）、`grpc-ecosystem/openapiv2`（从 `google.api.http` 注解派生 **Swagger 2.0 文档**，输出 `api/swagger/`，供 Swagger UI / Redoc / 前端客户端代码生成器消费）。openapiv2 是 remote plugin，**不进 `buf.lock`**（`buf.lock` 只记 proto module 依赖）；改完 `buf.gen.yaml` 跑 `make proto` 即生成。无 `google.api.http` 注解的 RPC 默认不出现在 swagger 里。
 
 ### Makefile 标准目标
 

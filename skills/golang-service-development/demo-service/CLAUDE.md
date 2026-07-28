@@ -34,6 +34,7 @@ scaffold 已按生成时的能力开关接好；这里说的是**生成之后**�
 - Proto 在 `api/proto/demo/v1/`（初始版本；破坏性变更开新版本目录 `v2/`、`v3/`，不就地改老版本）
 - buf v2 配置在 `buf.yaml` / `buf.gen.yaml`
 - 生成代码到 `gen/`（committed），由 `make proto` 生成
+- Swagger 2.0 文档生成到 `api/swagger/`（committed，供前端/客户端消费），同样由 `make proto` 产出——openapiv2 插件从 proto 的 `google.api.http` 注解派生
 
 ### 数据库 / GORM
 - PostgreSQL（通过 `dbx.New`）
