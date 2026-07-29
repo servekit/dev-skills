@@ -9,7 +9,6 @@
     {
       "name": "dev-skills",
       "description": "Domain development skills (Go, Protobuf/Buf, GORM/cli, OPA/Rego, Rust, TypeScript, Docker packaging) auto-loaded as Claude Code Skills.",
-      "version": "0.1.0",
       "source": ".",
       "homepage": "https://github.com/servekit/dev-skills",
       "category": "development"

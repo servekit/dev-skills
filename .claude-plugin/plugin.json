@@ -2,7 +2,6 @@
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "dev-skills",
   "description": "Domain development skills for Claude Code — Go, Rust, TypeScript, OPA, Protobuf standards plus a go-common service toolchain. Auto-loads as Skills; a SessionStart hook injects a routing guide and forces their use.",
-  "version": "0.1.0",
   "author": {
     "name": "only"
   },
