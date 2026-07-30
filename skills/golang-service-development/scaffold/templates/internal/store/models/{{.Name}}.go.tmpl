@@ -14,9 +14,12 @@ import (
 
 // {{.Pascal}} is the primary table of the {{.Name}} service.
 type {{.Pascal}} struct {
-	// ID is auto-incremented by the database (BIGSERIAL). GORM backfills the
-	// assigned value into the struct after insert.
-	ID          int64  `gorm:"primaryKey;autoIncrement"`
+	// ID is the primary key.{{if .Thirdcall}} When --thirdcall is enabled the ID
+	// is a snowflake value from gid-service, set by the service layer before
+	// insert — so the column is NOT autoIncrement.{{else}} Auto-incremented by
+	// the database (BIGSERIAL); GORM backfills the assigned value into the
+	// struct after insert.{{end}}
+	ID          int64  `gorm:"primaryKey{{if not .Thirdcall}};autoIncrement{{end}}"`
 	Name        string `gorm:"size:100;not null;index"`
 	Description string `gorm:"size:500"`
 	// Status stores a proto enum value as int32 (see api/proto/{{.Name}}/v1/{{.Name}}.proto

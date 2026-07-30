@@ -1,6 +1,6 @@
 ---
 name: golang-service-architecture
-description: "Sub-document of golang-service-development skill. Loaded by SKILL.md when you need architecture details: directory layout (pkg/internal/cmd/api/gen), the pkg/handler ↔ internal/service layering rule, three-mode runtime (standalone gRPC / HTTP gateway / in-process module), thirdcall interface/impl split, functional options + lifecycle.Manager resource management, project conventions, and the acceptance checklist. Read this when adding a new domain, changing startup/thirdcall/option code, or reviewing a service."
+description: "Sub-document of golang-service-development skill. Loaded by SKILL.md when you need architecture details: directory layout (pkg/internal/cmd/api/gen), the pkg/handler ↔ internal/service layering rule, three-mode runtime (standalone gRPC / HTTP gateway / in-process module), thirdcall inject-or-build pattern (interface internal + raw-handler injection), functional options + lifecycle.Manager resource management, project conventions, and the acceptance checklist. Read this when adding a new domain, changing startup/thirdcall/option code, or reviewing a service."
 ---
 
 # Go 微服务架构
@@ -21,21 +21,20 @@ description: "Sub-document of golang-service-development skill. Loaded by SKILL.
 ├── gen/                        # buf 生成产物（committed）
 ├── internal/                   # 业务实现，外部不可 import
 │   ├── provider/               # 辅助业务：mqtt/kafka/jobs 等
-│   ├── service/                # 业务逻辑（一个领域 = 一个子包；service.go 是本体 + facade，详见 §2）
+│   ├── service/                # 业务逻辑（一个领域 = 一个子包；service.go 是本体 + facade，helper.go 是资源 resolve，详见 §2）
 │   ├── store/                  # DB 访问（遵循 gorm-cli-development）
 │   │   ├── generated/          # gorm gen 产物
 │   │   ├── models/             # 表 struct
 │   │   └── dal/                # 类型安全 CRUD
-│   └── thirdcall/              # 第三方调用实现
-│       └── {name}/             # 一个第三方 = 一个子目录
-│           ├── grpc.go
-│           ├── module.go
-│           └── http.go (可选)
+│   └── thirdcall/              # 第三方调用：接口 + 实现都在这里（全 internal）
+│       └── gid_service/        # 一个第三方 = 一个子目录
+│           ├── gid.go          # 接口（GIDService: NextID + Close），仅包内可见
+│           ├── grpc.go         # gRPC 后端（dial 是 sketch；module 模式才用真 dep）
+│           └── module.go       # in-process 后端（wrap 外部注入的 raw *Handler）
 ├── pkg/                        # 公共能力，可作为 module 被 import
 │   ├── config/                 # 配置
 │   ├── handler/                # ★ proto service 的薄壳实现
-│   ├── option/                 # functional options
-│   ├── thirdcall/              # 第三方接口 + 工厂
+│   ├── option/                 # functional options（注入 raw *Handler，非内部接口）
 │   ├── xcodes/                 # 错误码（按域分文件）
 │   ├── client.go               # gRPC 客户端
 │   ├── module.go               # in-process 入口
@@ -76,7 +75,7 @@ func (h *Handler) CreateDemo(ctx context.Context, req *demov1.CreateDemoRequest)
 type DemoService struct {
     demov1.UnimplementedDemoServiceServer  // embed 让 *DemoService 满足 gRPC 接口
     db *gorm.DB
-    gid thirdcall.GIDService
+    gid gid_service.GIDService
 }
 
 // gRPC stub（public，导出）
@@ -165,7 +164,7 @@ internal/service/
 
 **1. Service 本体**：
 - `Service` struct 定义（持有子包实例）
-- `New()` 构造函数（含 resolveDB / resolveGID 等资源注入 helper）
+- `New()` 构造函数（调用 resolveDB / resolveGID 等资源注入 helper —— 这些 helper 集中在 `helper.go`，不在 service.go）
 - `Start()` / `Stop()` 生命周期方法
 
 **2. facade 方法**（每个 RPC 一个，**强制**）：
@@ -182,7 +181,7 @@ type Service struct {
     mgr *lifecycle.Manager
 
     db  *gorm.DB
-    gid thirdcall.GIDService
+    gid gid_service.GIDService
 
     // 每个领域一个子包实例
     demo      *demo.Service
@@ -216,10 +215,10 @@ package demo
 
 type Service struct {
     db  *gorm.DB
-    gid thirdcall.GIDService
+    gid gid_service.GIDService
 }
 
-func New(db *gorm.DB, gid thirdcall.GIDService) *Service {
+func New(db *gorm.DB, gid gid_service.GIDService) *Service {
     return &Service{db: db, gid: gid}
 }
 ```
@@ -358,7 +357,7 @@ embedding `demov1.DemoServiceClient` 让调用方直接调用 RPC 方法。
 func NewModule(cfg *config.Config, opts ...option.Option) (*Handler, error)
 ```
 
-**只返回 `*Handler`**——Handler 就是对外能力，调用方不需要也不应该拿到 service handle。如果需要控制资源（DB、GID）生命周期，通过 `option.WithDB` / `option.WithGIDService` 注入，让父进程拥有资源、负责清理：
+**只返回 `*Handler`**——Handler 就是对外能力，调用方不需要也不应该拿到 service handle。如果需要控制资源（DB、GID）生命周期，通过 `option.WithDB` / `option.WithGIDHandler` 注入（注入的是 raw `*Handler`，不是内部接口），让父进程拥有资源、负责清理：
 
 ```go
 hdl, err := demopkg.NewModule(cfg, option.WithDB(parentDB))
@@ -371,34 +370,81 @@ demo, err := hdl.GetDemo(ctx, &demov1.GetDemoRequest{Id: 1})
 
 ## 4. Thirdcall 双层模式
 
-### pkg/thirdcall/（接口 + 工厂）
+## 4. Thirdcall：接口 internal + 注入或自建
+
+第三方依赖（如 gid-service）的接入采用**接口内置 + 注入或自建**模式。canonical 实现是 `user-service`，照抄即可。
+
+### 接口 + 两个后端，都在 `internal/thirdcall/<name>/`
+
+接口**不**放 `pkg/`（没有 `pkg/thirdcall/`）——它是实现细节，对外只暴露 raw `*Handler`（见下方 option）。整个三方依赖的接口 + 实现都收在 `internal/thirdcall/gid_service/`：
 
 ```go
-type GIDService interface {
-    NextID() (int64, error)
-}
+// internal/thirdcall/gid_service/gid.go
+package gid_service
 
-func NewGIDService(cfg *config.RemoteServiceConfig[config.SnowflakeConfig]) (GIDService, error) {
+type GIDService interface {
+    NextID(ctx context.Context) (int64, error)
+    Close() error  // grpc→client.Close()；module→no-op（Handler 由 mgr.Add 管 Start/Stop）；resolveGID 接 lifecycle
+}
+```
+
+```go
+// internal/thirdcall/gid_service/module.go —— wrap 一个已建好的 raw Handler
+func NewModule(h *gidservice.Handler) GIDService { return &moduleGID{Handler: h} }
+func (m *moduleGID) Close() error { return nil }  // no-op：Handler 生命周期由 mgr.Add 管，见 resolveGID
+
+// internal/thirdcall/gid_service/grpc.go —— dial 远端（scaffold 里 dial 是 sketch）
+func NewGRPC(target string) (GIDService, error) { ... }
+func (g *grpcGID) Close() error { return g.client.Close() }
+```
+
+关键：`NewModule` / `NewGRPC` 只 **wrap**，不 **build**。建 raw Handler（或从父进程透传一个）是 service 根的活（`resolveGID`），不是这个包的。
+
+### option 注入 raw `*Handler`，不是接口
+
+`pkg/option` 暴露的是 gid-service 的 raw `*gidservice.Handler`，调用方不需要知道本服务的 `GIDService` 接口：
+
+```go
+type Options struct {
+    DB         *gorm.DB
+    GIDHandler *gidservice.Handler  // raw handler；service 内部 wrap 成 GIDService
+}
+func WithGIDHandler(h *gidservice.Handler) Option { ... }
+```
+
+### resolveGID：注入或自建（在 `helper.go`）
+
+`internal/service/helper.go` 的 `resolveGID` 是接线的核心 —— grpc / module / 注入三分支：grpc 注册 Stopper（关连接）；module 自建把 raw Handler 注册成 `mgr.Add`（管它的 Start/Stop）；注入不注册：
+
+```go
+func resolveGID(o *option.Options, cfg *config.RemoteServiceConfig[*gidconfig.Config], mgr *lifecycle.Manager) (gid_service.GIDService, error) {
     switch cfg.Mode {
-    case "grpc":     return gidservice.NewGRPC(cfg.Target)
-    case "module","": return gidservice.NewModule(&cfg.Config)
+    case "grpc":
+        gid, err := gid_service.NewGRPC(cfg.Target)        // 自建连接 → own
+        mgr.AddStopper("gid", lifecycle.StopFunc(func() { _ = gid.Close() }))
+        return gid, nil
+    case "module":
+        if o.GIDHandler != nil {
+            return gid_service.NewModule(o.GIDHandler), nil  // 父进程注入 → 不 own，不注册
+        }
+        hdl, err := gidservice.NewModule(cfg.Config)         // 自建 Handler → own
+        gid := gid_service.NewModule(hdl)
+        mgr.Add("gid", hdl)  // raw Handler 实现 lifecycle.Service，mgr 管它的 Start/Stop
+        return gid, nil
     }
 }
 ```
 
-### internal/thirdcall/{name}/（实现）
-
-每个第三方一个子目录：
-- `grpc.go` — gRPC 客户端实现
-- `module.go` — in-process 实现
-- `http.go`（可选）— HTTP 客户端实现
-
-**依赖方向**：`pkg/thirdcall/` 定义接口，`internal/thirdcall/` 实现。包外只能看到接口；切后端（gRPC ↔ module）只需改 config。
+- **grpc** → 注册 Stopper，`mgr.Stop` 关连接
+- **module+自建** → raw Handler 注册成 `mgr.Add`，`mgr` 管它的 Start/Stop（不再走 Stopper，所以 Handler 内部的 cron/consumer 也会真正 Start）
+- **module+注入**（`WithGIDHandler`）→ 不注册，父进程 own 生命周期
 
 ### 关键约束
 
-- `internal/thirdcall/<name>/` 是**唯一**允许 import 第三方 proto/gen 的地方
-- service / handler / pkg 都 import `pkg/thirdcall` 的**接口**，不直接 import 实现
+- `internal/thirdcall/<name>/` 是**唯一**允许 import 第三方（`github.com/servekit/gid-service/...`）的地方；service / handler 只依赖内部的 `gid_service.GIDService` 接口
+- **不存在 `pkg/thirdcall/`**；option 注入的是 raw `*Handler`，不是本服务接口
+- `New{Module,GRPC}` 只 wrap；build raw Handler 在 `resolveGID`（module+自建分支）或由父进程完成（注入分支）
+- config：`ThirdParty.GID *RemoteServiceConfig[*gidconfig.Config]`（泛型 `[T]` 复用，加新三方一行）
 
 ## 5. Option + lifecycle.Manager 资源管理
 
@@ -409,11 +455,11 @@ type Option func(*Options)
 
 type Options struct {
     DB         *gorm.DB
-    GIDService thirdcall.GIDService
+    GIDHandler *gidservice.Handler  // raw handler（不是内部 GIDService 接口）
 }
 
 func WithDB(db *gorm.DB) Option { return func(o *Options) { o.DB = db } }
-func WithGIDService(g thirdcall.GIDService) Option { ... }
+func WithGIDHandler(h *gidservice.Handler) Option { ... }
 func Apply(opts ...Option) Options { ... }
 ```
 
@@ -428,18 +474,20 @@ type Service struct {
 
     // 直接引用（CRUD 方法用），跟 mgr 里的实例是同一份
     db  *gorm.DB
-    gid thirdcall.GIDService
+    gid gid_service.GIDService
 }
 
 func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
     o := option.Apply(opts...)
     mgr := lifecycle.NewManager()
 
-    db, err := resolveDB(cfg, o.DB, mgr)        // 注入 → 不注册；自建 → 注册为 Stopper
+    db, err := resolveDB(&o, cfg, mgr)        // 注入 → 不注册；自建 → 注册为 Stopper
     if err != nil {
         return nil, errors.Join(err, mgr.Stop())  // 已注册的回滚
     }
-    gid, err := resolveGID(cfg, o.GIDService, mgr)
+    // resolveGID 在 helper.go：grpc / module+自建 → own（注册 Stopper）；
+    // module+注入(WithGIDHandler) → 父进程 own，不注册。详见 §4。
+    gid, err := resolveGID(&o, cfg.ThirdParty.GID, mgr)
     if err != nil {
         return nil, errors.Join(err, mgr.Stop())
     }
@@ -457,29 +505,20 @@ go-common 的 `lifecycle` 包已经提供了适配器，直接用就行——不
 - 真有 Start + Stop 两个阶段（cron / consumer），写个实现 `lifecycle.Service` 的小 struct，用 `mgr.Add(name, svc)` 注册
 
 ```go
-// resolveDB 里：Close 用 lifecycle.StopFunc + slog.Warn
+// resolveDB 里（helper.go）：Close 用 lifecycle.StopFunc；cleanup error 按 CLAUDE.md
+// 例外用 _ = 丢弃（资源清理 Close 允许 _ =，无 actionable 价值就不造类型 preserve）
 mgr.AddStopper("db", lifecycle.StopFunc(func() {
-    sqlDB, err := db.DB()
-    if err != nil {
-        slog.Warn("get sql db for close", "error", err)
-        return
-    }
-    if err := sqlDB.Close(); err != nil {
-        slog.Warn("close db", "error", err)
+    if sqlDB, e := db.DB(); e == nil && sqlDB != nil {
+        _ = sqlDB.Close()
     }
 }))
 
-// resolveGID 里：gRPC client 的 Close 同理
-if closer, ok := gid.(interface{ Close() error }); ok {
-    mgr.AddStopper("gid", lifecycle.StopFunc(func() {
-        if err := closer.Close(); err != nil {
-            slog.Warn("close gid", "error", err)
-        }
-    }))
-}
+// resolveGID 里：grpc 分支用 StopFunc 包 GIDService.Close（接口自带 Close，无需类型断言）；
+// module 分支不同——raw *Handler 自带 Start+Stop，直接 mgr.Add("gid", hdl) 注册成 lifecycle.Service
+mgr.AddStopper("gid", lifecycle.StopFunc(func() { _ = gid.Close() }))  // grpc 分支
 ```
 
-**关于"service 不打日志"的例外**：全局规则是库代码（`internal/` 业务逻辑）不直接打日志，通过返回 error 交给调用方。但 cleanup path 是例外——Stopper 注册到 lifecycle.Manager 后，Stop 时由 Manager 调用，error 即使返回也会被 `StopFunc` 丢弃。所以 close 错误只能用 slog 记录，没别的出口。
+**关于 cleanup error**：CLAUDE.md 允许资源清理（`Close()` 等）用 `_ =` 忽略 error。Stopper 注册到 lifecycle.Manager 后，Stop 时由 Manager 调用；cleanup path 的 close 失败基本无 actionable 价值，直接 `_ =` 即可（scaffold 和 user-service 都是这个风格）。要保留可见性也可改 `slog.Warn`，但不要在 service 里造 closer 类型去 preserve error。
 
 - **调用方注入 (`WithDB(db)`)** → resolveXxx 直接返回，不注册到 mgr → Stop 不管它，调用方负责清理
 - **调用方没注入** → resolveXxx 从 cfg 自建 + 注册到 mgr → Stop 按 LIFO 反序清理
@@ -504,6 +543,7 @@ demo, err := hdl.GetDemo(ctx, &demov1.GetDemoRequest{Id: 1})
 |------|---------|------|
 | DB pool | `mgr.AddStopper("db", lifecycle.StopFunc(...))` | 只需 Close，没 Start |
 | gRPC client conn | `mgr.AddStopper("gid", lifecycle.StopFunc(...))` | 同上 |
+| in-process 下游 Handler（thirdcall module 自建）| `mgr.Add("gid", hdl)` | raw Handler 自带 Start+Stop，注册成 lifecycle.Service（区别于上面 close-only 资源）|
 | Redis client | `mgr.AddStopper("redis", lifecycle.StopFunc(...))` | 同上 |
 | Cron (周期任务) | `mgr.Add("jobs", scheduler)` via `svc.setupJobs()` | 详见 `jobs.md` |
 | Kafka consumer | `mgr.Add("consumer", &consumerComponent{...})` | Start 启动 goroutine；Stop 停 + 等 in-flight |

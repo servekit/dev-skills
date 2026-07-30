@@ -14,9 +14,10 @@ import (
 
 // Demo is the primary table of the demo service.
 type Demo struct {
-	// ID is auto-incremented by the database (BIGSERIAL). GORM backfills the
-	// assigned value into the struct after insert.
-	ID          int64  `gorm:"primaryKey;autoIncrement"`
+	// ID is the primary key. When --thirdcall is enabled the ID
+	// is a snowflake value from gid-service, set by the service layer before
+	// insert — so the column is NOT autoIncrement.
+	ID          int64  `gorm:"primaryKey"`
 	Name        string `gorm:"size:100;not null;index"`
 	Description string `gorm:"size:500"`
 	// Status stores a proto enum value as int32 (see api/proto/demo/v1/demo.proto

@@ -8,7 +8,7 @@
 # Capability flags (default ALL OFF = minimal shell that runs without Postgres):
 #   --db            PostgreSQL via dbx (postgres-only; go-common has no mysql path)
 #   --redis         Redis via redisx
-#   --thirdcall     thirdcall demo placeholder
+#   --thirdcall     gid-service dependency (snowflake ID generator)
 #   --example       CRUD starter domain (implies --db)
 #   Negate with --no-db / --no-redis / --thirdcall / --no-example; last wins.
 #
@@ -64,7 +64,7 @@ if [[ "$has_cap_flag" == "false" ]]; then
         }
         ask "  Database (PostgreSQL)?" "--db"
         ask "  Redis?" "--redis"
-        ask "  Third-party call (thirdcall demo)?" "--thirdcall"
+        ask "  Third-party call (gid-service)?" "--thirdcall"
         ask "  Example CRUD domain?" "--example"
         # Mirror scaffold's example->db invariant for clarity in the prompt flow.
         if [[ "$cap_flags" == *"--example"* && "$cap_flags" != *"--db"* ]]; then

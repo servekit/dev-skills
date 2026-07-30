@@ -24,6 +24,7 @@ import (
 	demov1 "demo-service/gen/demo/v1"
 	"demo-service/internal/store/dal"
 	"demo-service/internal/store/models"
+	gid_service "demo-service/internal/thirdcall/gid_service"
 	"demo-service/pkg/xcodes"
 )
 
@@ -31,24 +32,32 @@ import (
 // construction; the subpackage does not manage their lifecycle.
 type Service struct {
 	db *gorm.DB
+	gid gid_service.GIDService
 }
 
 // New constructs a Demo domain service with injected resources.
-func New(db *gorm.DB) *Service {
-	return &Service{db: db}
+func New(db *gorm.DB, gid gid_service.GIDService) *Service {
+	return &Service{db: db, gid: gid}
 }
 
 // CreateDemo inserts a new demo record.
 //
-// ID is auto-incremented by the database; GORM backfills record.ID after
-// insert. CreatedAt/UpdatedAt are backfilled by GORM on insert. Status is
-// the proto enum value, cast to int32 for storage.
+// The ID is generated up front via gid-service (snowflake) and
+// set on the record before insert; the model's ID column is NOT autoIncrement
+// in this config. CreatedAt/UpdatedAt are backfilled by GORM on
+// insert. Status is the proto enum value, cast to int32 for storage.
 func (s *Service) CreateDemo(ctx context.Context, req *demov1.CreateDemoRequest) (*demov1.Demo, error) {
 	record := &models.Demo{
 		Name:        req.GetName(),
 		Description: req.GetDescription(),
 		Status:      int32(req.GetStatus()),
 	}
+
+	id, err := s.gid.NextID(ctx)
+	if err != nil {
+		return nil, xcodes.ErrDemoInternal.Wrapf(err, "generate demo id")
+	}
+	record.ID = id
 
 	if err := dal.CreateDemo(ctx, s.db, record); err != nil {
 		return nil, xcodes.ErrDemoInternal.Wrapf(err, "insert demo")

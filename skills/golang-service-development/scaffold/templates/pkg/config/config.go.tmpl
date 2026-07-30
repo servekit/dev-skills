@@ -10,6 +10,7 @@ import (
 	{{if .DB}}"github.com/servekit/go-common/dbx"{{end}}
 	{{if .Redis}}"github.com/servekit/go-common/redisx"{{end}}
 	"github.com/servekit/go-common/logging"
+	{{if .Thirdcall}}gidconfig "github.com/servekit/gid-service/pkg/config"{{end}}
 )
 
 // serviceName identifies this binary in config file lookup (/etc/<name>) and
@@ -55,9 +56,13 @@ type CronConfig struct {
 	Timezone string `default:"Asia/Shanghai"`
 }
 	{{if .Thirdcall}}
-// ThirdPartyConfig groups all third-party service settings.
+// ThirdPartyConfig holds third-party service connection settings.
 type ThirdPartyConfig struct {
-	Demo RemoteServiceConfig[DemoServiceConfig]
+	// GID is the gid-service dependency (snowflake ID generator). Mode selects
+	// in-process (module) vs remote (grpc); see RemoteServiceConfig. This is a
+	// real dependency — the example domain uses gid.NextID() for its IDs when
+	// --thirdcall is enabled.
+	GID *RemoteServiceConfig[*gidconfig.Config]
 }
 
 // RemoteServiceConfig holds connection settings for a service that can run
@@ -65,23 +70,14 @@ type ThirdPartyConfig struct {
 // used in module mode. Adding a new third-party service is one line:
 //
 //	type ThirdPartyConfig struct {
-//	    Demo    RemoteServiceConfig[DemoServiceConfig]
-//	    Payment RemoteServiceConfig[PaymentConfig]   // new
+//	    GID     *RemoteServiceConfig[*gidconfig.Config]
+//	    Payment *RemoteServiceConfig[*PaymentConfig]   // new
 //	}
 type RemoteServiceConfig[T any] struct {
-	// Mode is "grpc" or "module". "module" is the dev default — no external dep.
+	// Mode is "grpc" or "module". "module" is the dev default — in-process.
 	Mode   string // "module" | "grpc"
 	Target string // gRPC addr, used when Mode == "grpc"
 	Config T      // in-process config, used when Mode == "module"
-}
-
-// DemoServiceConfig is the in-process config for DemoService. Placeholder
-// fields — replace with whatever your real third-party service needs.
-type DemoServiceConfig struct {
-	// Prefix is prepended to every DoDemo result (module mode only).
-	Prefix string `default:"[demo]"`
-	// MaxInputLen caps the length of DoDemo inputs.
-	MaxInputLen int `default:"1024"`
 }
 	{{end}}
 // Load reads config from the standard configx locations:

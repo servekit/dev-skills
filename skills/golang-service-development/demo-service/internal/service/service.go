@@ -2,7 +2,7 @@
 //
 // Layering contract (see golang-service-development skill §2):
 //   - This is the SERVICE ROOT. It holds Service struct + New + Start/Stop +
-//     resource resolve helpers + one-line facade methods (one per RPC).
+//     one-line facade methods (one per RPC).
 //   - Business logic lives in SUBPACKAGES (internal/service/<domain>/). This
 //     file does NOT contain CRUD implementations — only delegations.
 //   - handler calls service.X; service.X is a one-line facade that calls
@@ -19,7 +19,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"time"
 	
 	"github.com/redis/go-redis/v9"
@@ -29,29 +28,26 @@ import (
 	"demo-service/internal/jobs"
 	"demo-service/internal/version"
 	"demo-service/internal/service/demo"
+	gid_service "demo-service/internal/thirdcall/gid_service"
 	"demo-service/pkg/config"
 	"demo-service/pkg/option"
-	"demo-service/pkg/thirdcall"
 
 	"github.com/servekit/go-common/cronx"
-	"github.com/servekit/go-common/dbx"
-	"github.com/servekit/go-common/redisx"
 	"github.com/servekit/go-common/lifecycle"
 )
 
 // Service holds demo-service business state.
 //
-// Resource fields (db, redis, demoSvc) are convenience references kept on the
-// root Service for resolveXxx helpers — they point at the same instances
-// tracked by mgr and injected into subpackages. Each domain lives in its own
-// subpackage field (demo *demo.Service); subpackages do NOT
-// reference this struct.
+// Resource fields (db, redis, gid) are convenience references kept on the root
+// Service — they point at the same instances tracked by mgr and injected into
+// subpackages. Each domain lives in its own subpackage field
+// (demo *demo.Service); subpackages do NOT reference this struct.
 type Service struct {
 	cfg *config.Config
 	mgr *lifecycle.Manager
 	db *gorm.DB
 	redis *redis.Client
-	demoSvc thirdcall.DemoService
+	gid gid_service.GIDService
 	// One field per domain subpackage. Add fields here as new domains appear.
 	demo *demo.Service
 
@@ -70,18 +66,9 @@ type Service struct {
 // components are stopped via mgr.Stop() before returning the error.
 func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 	o := option.Apply(opts...)
-	_ = o // injection seam; enabled resources read o.X below
 	mgr := lifecycle.NewManager()
 	
-	db, err := resolveDB(cfg, o.DB, mgr)
-	if err != nil {
-		if cerr := mgr.Stop(); cerr != nil {
-			err = errors.Join(err, cerr)
-		}
-		return nil, err
-	}
-	
-	redis, err := resolveRedis(cfg, o.Redis, mgr)
+	db, err := resolveDB(&o, cfg, mgr)
 	if err != nil {
 		if cerr := mgr.Stop(); cerr != nil {
 			err = errors.Join(err, fmt.Errorf("rollback: %w", cerr))
@@ -89,7 +76,7 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 		return nil, err
 	}
 	
-	demoSvc, err := resolveDemo(cfg, o.DemoService, mgr)
+	redis, err := resolveRedis(&o, cfg, mgr)
 	if err != nil {
 		if cerr := mgr.Stop(); cerr != nil {
 			err = errors.Join(err, fmt.Errorf("rollback: %w", cerr))
@@ -97,19 +84,27 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 		return nil, err
 	}
 	
+	gid, err := resolveGID(&o, cfg.ThirdParty.GID, mgr)
+	if err != nil {
+		if cerr := mgr.Stop(); cerr != nil {
+			err = errors.Join(err, fmt.Errorf("rollback: %w", cerr))
+		}
+		return nil, err
+	}
+	
+	// jobs.Scheduler owns the cron instance; setupJobs builds it, registers
+	// it on mgr, and wires periodic jobs (empty by default — add jobs inside
+	// setupJobs as scheduler.AddFunc calls). See architecture.md (jobs.md).
 	svc := &Service{
 		cfg: cfg,
 		mgr: mgr,
 		db: db,
 		redis: redis,
-		demoSvc: demoSvc,
-		demo: demo.New(db),
+		gid: gid,
+		demo: demo.New(db, gid),
 		startedAt: time.Now().UnixMilli(),
 	}
 
-	// jobs.Scheduler owns the cron instance; setupJobs builds it, registers
-	// it on mgr, and wires periodic jobs (empty by default — add jobs inside
-	// setupJobs as scheduler.AddFunc calls). See architecture.md (jobs.md).
 	if err := svc.setupJobs(); err != nil {
 		if cerr := mgr.Stop(); cerr != nil {
 			err = errors.Join(err, fmt.Errorf("rollback: %w", cerr))
@@ -172,7 +167,9 @@ func (s *Service) DeleteDemo(ctx context.Context, id int64) error {
 	return s.demo.DeleteDemo(ctx, id)
 }
 	
-// --- internal helpers ---
+// Resource resolve helpers (resolveDB / resolveRedis / resolveGID)
+// live in helper.go — extracted from this file to keep service.go focused on
+// the Service struct, New/Start/Stop/Ping, and the facade delegations.
 
 // setupJobs builds the jobs.Scheduler, registers it on s.mgr, and wires
 // periodic jobs. Signature is intentionally receiver-only: future jobs are
@@ -191,68 +188,3 @@ func (s *Service) setupJobs() error {
 	s.mgr.Add("jobs", scheduler)
 	return nil
 }
-	
-// resolveDB returns the *gorm.DB to use. If the caller injected one via
-// WithDB, it's returned as-is (caller owns lifecycle). Otherwise a new one
-// is built from cfg and registered with mgr as a Stopper.
-func resolveDB(cfg *config.Config, injected *gorm.DB, mgr *lifecycle.Manager) (*gorm.DB, error) {
-	if injected != nil {
-		return injected, nil
-	}
-	db, err := dbx.New(cfg.Database)
-	if err != nil {
-		return nil, fmt.Errorf("open db: %w", err)
-	}
-	mgr.AddStopper("db", lifecycle.StopFunc(func() {
-		sqlDB, err := db.DB()
-		if err != nil {
-			slog.Warn("get sql db for close", "error", err)
-			return
-		}
-		if err := sqlDB.Close(); err != nil {
-			slog.Warn("close db", "error", err)
-		}
-	}))
-	return db, nil
-}
-	
-// resolveRedis returns the *redis.Client to use. If the caller injected one
-// via WithRedis, it's returned as-is (caller owns lifecycle). Otherwise a new
-// one is built from cfg.Redis and registered with mgr as a Stopper.
-func resolveRedis(cfg *config.Config, injected *redis.Client, mgr *lifecycle.Manager) (*redis.Client, error) {
-	if injected != nil {
-		return injected, nil
-	}
-	rdb, err := redisx.New(cfg.Redis)
-	if err != nil {
-		return nil, fmt.Errorf("init redis: %w", err)
-	}
-	mgr.AddStopper("redis", lifecycle.StopFunc(func() {
-		if err := rdb.Close(); err != nil {
-			slog.Warn("close redis", "error", err)
-		}
-	}))
-	return rdb, nil
-}
-	
-// resolveDemo returns the DemoService to use. If the caller injected one via
-// WithDemoService, it's returned as-is. Otherwise a new one is built from cfg
-// and — if it implements Close() — registered with mgr as a Stopper.
-func resolveDemo(cfg *config.Config, injected thirdcall.DemoService, mgr *lifecycle.Manager) (thirdcall.DemoService, error) {
-	if injected != nil {
-		return injected, nil
-	}
-	demo, err := thirdcall.NewDemoService(&cfg.ThirdParty.Demo)
-	if err != nil {
-		return nil, fmt.Errorf("init demo: %w", err)
-	}
-	if closer, ok := demo.(interface{ Close() error }); ok {
-		mgr.AddStopper("demo", lifecycle.StopFunc(func() {
-			if err := closer.Close(); err != nil {
-				slog.Warn("close demo", "error", err)
-			}
-		}))
-	}
-	return demo, nil
-}
-	

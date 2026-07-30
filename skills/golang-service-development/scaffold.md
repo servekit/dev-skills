@@ -61,7 +61,7 @@ skills/golang-service-development/
 |---|---|
 | `--db` | PostgreSQL：`store/{models,dal,generated}` + migrate 子命令 + resolveDB + compose postgres |
 | `--redis` | Redis：resolveRedis + config.Redis + compose redis |
-| `--thirdcall` | 第三方调用占位：`pkg/thirdcall` + `internal/thirdcall` + option/config 接线 |
+| `--thirdcall` | gid-service 依赖：`internal/thirdcall/gid_service/`（接口+grpc/module 实现）+ `option.WithGIDHandler` + config(`ThirdParty.GID`) + `resolveGID`(helper.go)；example 域用 `gid.NextID` 生成 ID |
 | `--example` | CRUD 起点领域（`{Name}` 的 Create/Get/List/Update/Delete），隐含 `--db` |
 | `--no-X` | 关闭（如 `--db --no-redis`）；多个 flag 后者胜出 |
 
@@ -148,10 +148,10 @@ package {{.Name}}
 
 type Service struct {
     db  *gorm.DB
-    gid thirdcall.GIDService
+    gid gid_service.GIDService
 }
 
-func New(db *gorm.DB, gid thirdcall.GIDService) *Service {
+func New(db *gorm.DB, gid gid_service.GIDService) *Service {
     return &Service{db: db, gid: gid}
 }
 
@@ -179,7 +179,7 @@ Go 模板用 `{{ }}` 作为分隔符，遇到 Go 代码里的 `&Foo{Bar: ...}` �
 
 ## 生成后：baseline 代码怎么处理
 
-生成的那套以服务名为名的代码是**两条独立链路**：主业务线（proto→handler→service→store，你的服务本体，**演进它**）和 thirdcall 占位线（纯 dual-mode 教学样本，**没业务调用它**，不调第三方就成套删）。三种处理场景（演进 / 删 thirdcall 占位 / 推倒重做）的完整文件清单见入口 `SKILL.md` §2.1。
+生成的那套以服务名为名的代码是**两条独立链路**：主业务线（proto→handler→service→store，你的服务本体，**演进它**）和 thirdcall 线（真实的 gid-service 依赖——example 域的 `Create` 用 `gid.NextID` 生成 ID 来 exercise 这个 dep；不需要 gid-service 就成套删）。三种处理场景（演进 / 删 thirdcall / 推倒重做）的完整文件清单见入口 `SKILL.md` §2.1。
 
 ## 生成后必跑
 

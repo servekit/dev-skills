@@ -35,7 +35,7 @@ import (
 	
 	"github.com/redis/go-redis/v9"
 	
-	"demo-service/pkg/thirdcall"
+	gidservice "github.com/servekit/gid-service/pkg"
 	
 )
 
@@ -55,9 +55,11 @@ type Options struct {
 	// advanced cases (e.g., a parent process sharing its scheduler).
 	Cron *cron.Cron
 	
-	// DemoService is the placeholder third-party service showing the dual-mode
-	// (gRPC / module) integration pattern. Replace with real services as needed.
-	DemoService thirdcall.DemoService
+	// GIDHandler is the raw gid-service Handler. The service wraps it internally
+	// into its GIDService (internal/thirdcall/gid_service); callers do not need
+	// to know that interface. If not set, the service builds one from
+	// cfg.ThirdParty.GID (module mode in-process, or grpc mode remote).
+	GIDHandler *gidservice.Handler
 	
 }
 	
@@ -71,9 +73,11 @@ func WithRedis(c *redis.Client) Option { return func(o *Options) { o.Redis = c }
 // periodic-task needs should extend the scaffold's jobs.Scheduler instead.
 func WithCron(c *cron.Cron) Option { return func(o *Options) { o.Cron = c } }
 	
-// WithDemoService injects an existing DemoService. Caller owns its lifecycle.
-func WithDemoService(d thirdcall.DemoService) Option {
-	return func(o *Options) { o.DemoService = d }
+// WithGIDHandler injects a raw gid-service Handler. Caller owns its lifecycle;
+// the service wraps it internally (NewModule) and does not Stop it. If not set,
+// the service builds one from cfg.ThirdParty.GID.
+func WithGIDHandler(h *gidservice.Handler) Option {
+	return func(o *Options) { o.GIDHandler = h }
 }
 	
 // Apply evaluates all options and returns the resolved Options. A nil field

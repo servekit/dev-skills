@@ -1,5 +1,5 @@
-// Command server is the demo-service gRPC + HTTP entry point, and also hosts
-// operational subcommands such as database migration.
+// Command server is the demo-service gRPC + HTTP entry point.
+// It also hosts the `migrate` subcommand, which applies GORM AutoMigrate.
 //
 // Usage:
 //

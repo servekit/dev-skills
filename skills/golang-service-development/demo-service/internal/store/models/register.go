@@ -10,8 +10,9 @@ import (
 
 // AllModels returns all GORM models for AutoMigrate.
 //
-// Add new models here as they are introduced. cmd/migrate/main.go consumes
-// this slice directly.
+// Add new models here as they are introduced. pkg/handler.Migrate (re-exported
+// as pkg.Migrate) consumes this slice — both the `migrate` subcommand and
+// embedded module users go through it.
 func AllModels() []any {
 	return []any{
 		&Demo{},

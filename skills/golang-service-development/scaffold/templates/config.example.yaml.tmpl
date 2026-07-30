@@ -29,12 +29,14 @@ redis:
   db: {{envvar "REDIS_DB"}}
 {{end}}{{if .Thirdcall}}
 third_party:
-  demo:
-    mode: {{envvar "THIRD_PARTY_DEMO_MODE"}}
-    target: {{envvar "THIRD_PARTY_DEMO_TARGET"}}
-    config:
-      prefix: {{envvar "THIRD_PARTY_DEMO_CONFIG_PREFIX"}}
-      max_input_len: {{envvar "THIRD_PARTY_DEMO_CONFIG_MAX_INPUT_LEN"}}
+  gid:
+    mode: {{envvar "GID_MODE"}}          # module = in-process; grpc = remote gid-service
+    target: {{envvar "GID_TARGET"}}      # gRPC addr when mode=grpc, e.g. "localhost:19091"
+    config:                              # required when mode=module — full gid-service config
+      snowflake:
+        machine_id: {{envvar "GID_MACHINE_ID"}}  # must be unique per node
+        # snowflake epoch — DO NOT change after deployment
+        start_time: {{envvar "GID_START_TIME"}}
 {{end}}
 cron:
   timezone: {{envvar "CRON_TIMEZONE"}}

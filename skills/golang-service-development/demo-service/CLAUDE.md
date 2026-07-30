@@ -13,8 +13,8 @@ Demo service — 基于 [go-common](https://github.com/servekit/go-common) 的 g
 - **service 直接吃 proto**：业务方法接受/返回 proto 类型，proto↔model 转换发生在 store 边界。禁止 handler↔service 之间造中间 struct。
 - **一个领域 = 一个子包**：业务在 `internal/service/<domain>/`；`internal/service/service.go` 只放本体 + facade，不写业务，根目录没有 `<domain>.go` 单文件。
 - **枚举优先 proto**：枚举在 proto 里定义，DB 存 `int32`，用 proto 内置方法转换（`int32(x)` / `demov1.X(x)` / `.String()` / `_name` / `_value` map），**不要自己写 helper**（边界用例见 enum.md）。
-- **第三方调用双层**：`pkg/thirdcall/` 定义接口，`internal/thirdcall/<name>/` 实现；service 只 import 接口，不碰实现。
-- **资源用 lifecycle.Manager**：不要 `ownX bool`；注入的资源（`WithX`）不注册，自建的注册为 Stopper。
+- **第三方调用（接口 internal）**：接口在 `internal/thirdcall/<name>/`（如 `gid_service`），不在 `pkg/`——**没有 `pkg/thirdcall/`**；`option` 注入 raw `*Handler`（`WithGIDHandler`），service 内部 wrap 成内部接口；切 grpc/module 只改 config（`third_party.<name>.mode`）。
+- **资源用 lifecycle.Manager**：不要 `ownX bool`；注入的资源（`WithX`）不注册，自建的注册到 mgr（close-only 资源用 Stopper；有 Start 的下游 Handler 用 `mgr.Add`）。
 - **加 RPC 四步**：proto 加方法 → `make proto` → handler 加委托 → `service.go` 加 facade → 子包加业务。
 - **scaffold 是 one-shot**：本服务已生成，后续演进手写，**绝不重跑** `new-service.sh`（会覆盖丢代码）。
 
@@ -23,7 +23,7 @@ Demo service — 基于 [go-common](https://github.com/servekit/go-common) 的 g
 给本服务**后加**任何资源能力（DB / Redis / 第三方调用 / 消息队列 / 其他 go-common 资源）时，**必须**照抄 demo-service 的 `resolveXxx` 实现 + `architecture.md` 的「用 lifecycle.Manager 而不是 ownX bool」段——**不许**自己发明集成方式：
 
 - **注入的资源**（`option.WithX`）**不注册**到 mgr，调用方拥有生命周期；
-- **自建的**注册为 `mgr.AddStopper(name, lifecycle.StopFunc(...))`，cleanup 错误用 `slog.Warn`（不要自造 closer 类型、不要在 service 里返回 cleanup error）；
+- **自建的**注册到 mgr：close-only 资源用 `mgr.AddStopper(name, lifecycle.StopFunc(...))`，自带 Start+Stop 的下游 Handler 用 `mgr.Add(name, hdl)`；cleanup 错误用 `slog.Warn`（不要自造 closer 类型、不要在 service 里返回 cleanup error）；
 - 在 `internal/service/service.go` 的 `New()` 里 resolve（仿 `resolveDB` / `resolveRedis`），失败回滚 `mgr.Stop()`。
 
 scaffold 已按生成时的能力开关接好；这里说的是**生成之后**新加能力。
@@ -39,7 +39,7 @@ scaffold 已按生成时的能力开关接好；这里说的是**生成之后**�
 ### 数据库 / GORM
 - PostgreSQL（通过 `dbx.New`）
 - `internal/store/{models,generated,dal}` 遵循 `gorm-cli-development` skill
-- 迁移：`cmd/server` 的 `migrate` 子命令 + GORM AutoMigrate（`go run ./cmd/server migrate`）
+- 迁移：GORM AutoMigrate，统一入口 `pkg/handler.Migrate`（pkg 顶层 re-export 为 `pkg.Migrate`）。`cmd/server migrate` 子命令与嵌入模块（`pkg.NewModule` + `option.WithDB`，先 `pkg.Migrate(parentDB)` 再构造）都走它，确保 standalone / in-process 两种部署都能建表
 
 ### 错误处理
 - 错误码在 `pkg/xcodes/demo.go`，按域分文件

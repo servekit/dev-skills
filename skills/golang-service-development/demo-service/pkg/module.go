@@ -6,6 +6,7 @@ import (
 	"demo-service/pkg/config"
 	"demo-service/pkg/handler"
 	"demo-service/pkg/option"
+	"gorm.io/gorm"
 )
 
 // Handler is the in-process entry point. Callers invoke proto-typed RPC
@@ -31,7 +32,7 @@ var _ demov1.DemoServiceServer = (*Handler)(nil)
 //	defer hdl.Stop()                                    // closes owned resources
 //	demo, err := hdl.GetDemo(ctx, &demov1.GetDemoRequest{Id: 1})
 //
-// Resources injected via option.WithDB / WithDemoService are NOT owned by the
+// Resources injected via option.WithDB / WithGIDHandler are NOT owned by the
 // service — parent process keeps ownership and is responsible for cleanup.
 // Only resources the service creates from cfg are tracked by the internal
 // lifecycle.Manager and stopped on Stop.
@@ -42,3 +43,14 @@ func NewModule(cfg *config.Config, opts ...option.Option) (*Handler, error) {
 	}
 	return handler.New(svc), nil
 }
+
+// Migrate applies the current schema (GORM AutoMigrate) to db. It re-exports
+// handler.Migrate at the package surface so embedders and the `migrate`
+// subcommand share one entry point:
+//
+//	demopkg.Migrate(parentDB)                              // before NewModule
+//	hdl, err := demopkg.NewModule(cfg, option.WithDB(parentDB))
+func Migrate(db *gorm.DB) error {
+	return handler.Migrate(db)
+}
+

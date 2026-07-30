@@ -23,32 +23,42 @@ import (
 
 	{{.Name}}v1 "{{.Module}}/gen/{{.Name}}/v1"
 	"{{.Module}}/internal/store/dal"
-	"{{.Module}}/internal/store/models"
+	"{{.Module}}/internal/store/models"{{if .Thirdcall}}
+	gid_service "{{.Module}}/internal/thirdcall/gid_service"{{end}}
 	"{{.Module}}/pkg/xcodes"
 )
 
 // Service is the {{.Name}} domain service. Resources are injected at
 // construction; the subpackage does not manage their lifecycle.
 type Service struct {
-	db *gorm.DB
+	db *gorm.DB{{if .Thirdcall}}
+	gid gid_service.GIDService{{end}}
 }
 
 // New constructs a {{.Pascal}} domain service with injected resources.
-func New(db *gorm.DB) *Service {
-	return &Service{db: db}
+func New(db *gorm.DB{{if .Thirdcall}}, gid gid_service.GIDService{{end}}) *Service {
+	return &Service{db: db{{if .Thirdcall}}, gid: gid{{end}}}
 }
 
 // Create{{.Pascal}} inserts a new {{.Name}} record.
 //
-// ID is auto-incremented by the database; GORM backfills record.ID after
-// insert. CreatedAt/UpdatedAt are backfilled by GORM on insert. Status is
-// the proto enum value, cast to int32 for storage.
+// {{if .Thirdcall}}The ID is generated up front via gid-service (snowflake) and
+// set on the record before insert; the model's ID column is NOT autoIncrement
+// in this config.{{else}}ID is auto-incremented by the database; GORM backfills
+// record.ID after insert.{{end}} CreatedAt/UpdatedAt are backfilled by GORM on
+// insert. Status is the proto enum value, cast to int32 for storage.
 func (s *Service) Create{{.Pascal}}(ctx context.Context, req *{{.Name}}v1.Create{{.Pascal}}Request) (*{{.Name}}v1.{{.Pascal}}, error) {
 	record := &models.{{.Pascal}}{
 		Name:        req.GetName(),
 		Description: req.GetDescription(),
 		Status:      int32(req.GetStatus()),
+	}{{if .Thirdcall}}
+
+	id, err := s.gid.NextID(ctx)
+	if err != nil {
+		return nil, xcodes.Err{{.Pascal}}Internal.Wrapf(err, "generate {{.Name}} id")
 	}
+	record.ID = id{{end}}
 
 	if err := dal.Create{{.Pascal}}(ctx, s.db, record); err != nil {
 		return nil, xcodes.Err{{.Pascal}}Internal.Wrapf(err, "insert {{.Name}}")

@@ -135,7 +135,7 @@ scaffold 生成的那套以服务名为名的代码（demo-service 里满眼的 
 | 示例 | 要删的文件 |
 |------|-----------|
 | 主业务 | `api/proto/<name>/`（service + message）· `pkg/handler/<name>.go` · `internal/service/<name>/` · `internal/store/{models,dal,generated}/<name>*` · `pkg/xcodes/<name>.go` · `store/models/register.go` 的注册行 |
-| thirdcall 占位（死代码，没业务调用） | `pkg/thirdcall/<name>*.go` · `internal/thirdcall/<name>*/` · `option.go`（`<name>Service` 字段 + `With<name>()`）· `service.go`（字段 + `resolve<name>()` + New 调用）· `config.go`（`<name>` 配置）· `config.example.yaml` + `.env.example`（`third_party.<name>` 段） |
+| thirdcall（gid-service 依赖） | `internal/thirdcall/gid_service/`（接口+实现，全 internal）· `option.go`（`GIDHandler` 字段 + `WithGIDHandler`）· `helper.go`（`resolveGID`）· `service.go`（`gid` 字段 + New 里 `resolveGID` 调用）· `config.go`（`ThirdParty.GID` + `gidconfig` import）· `config.example.yaml` + `.env.example`（`third_party.gid` 段）· `go.mod`（gid-service require）· **example 域**（`New(db, gid)`→`New(db)`、`Create` 去掉 `gid.NextID`、model ID tag 改回 `autoIncrement`） |
 | 框架引用（删主业务时同步） | `server.go`（`Register<name>` + Handler）· `client.go`（embed + `New<name>Client`）· `module.go`（编译断言） |
 
 删主业务后，proto 至少留一个空 `service <Name>Service {}` 才能编译。**示例不是生成产物，删了不能 `make` / scaffold 重生**。
@@ -163,11 +163,11 @@ scaffold 生成的那套以服务名为名的代码（demo-service 里满眼的 
 |------|------|---------|
 | **① 业务代码（你的主战场）** | `api/proto/` · `pkg/handler/` · `pkg/xcodes/` · `internal/service/` · `internal/store/{models,dal}` | 加 RPC / 领域就改这里。**含 scaffold 生成的那套以服务名为名的 baseline**（Create/Get 等）——它是你的起点，演进或删见 §2.1 |
 | **② 框架代码（基本不动）** | `cmd/server/` · `pkg/{server,module,client,config,option}.go` · `internal/jobs/` · `buf*.yaml` · `Makefile` · `.golangci.yml` | scaffold 生成。加 RPC 时**不用碰**；改启动 / 加定时任务时才动 |
-| **②′ thirdcall 占位（可删）** | `pkg/thirdcall/<name>.go` · `internal/thirdcall/<name>/` · `option.go` 的 `<name>Service` 字段 · `service.go` 的 `resolve<Name>` · config 里的 `<name>` 段 | dual-mode 教学**样本**，**没业务调用它**。不调第三方就成套删；要调就照抄改真实（§2.1） |
+| **②′ thirdcall（gid-service，可删）** | `internal/thirdcall/gid_service/`（接口+实现）· `option.go` 的 `GIDHandler` 字段 + `WithGIDHandler` · `helper.go` 的 `resolveGID` · config 的 `ThirdParty.GID` 段 | 真实的 gid-service 依赖（example 域 `Create` 用 `gid.NextID`）。不需要就成套删（清单见 §2.1）；接口在 `internal/`，**没有 `pkg/thirdcall/`** |
 | **③ 生成产物（可删重生）** | `gen/` · `api/swagger/` · `internal/store/generated/` | `make proto` / `make generate` 产出。**永远别手改**；改了 proto/model 后重跑生成覆盖即可，删了能重生 |
 | **④ 示例（不是你的代码）** | skill 仓库里的 `demo-service/` · `scaffold/` | 只在 skill 仓库存在，**不在你的服务里**。是参考实现 / 模板源，加接口时**别去读** |
 
-> **① ② ②′ 是手写起点，不是 ③ 那种能 `make` 重生的产物**——baseline（含 thirdcall 占位）删了找不回。
+> **① ② ②′ 是手写起点，不是 ③ 那种能 `make` 重生的产物**——baseline（含 thirdcall 接线）删了找不回。
 
 ---
 

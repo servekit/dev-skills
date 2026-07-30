@@ -228,7 +228,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "capability flags (default: all off = minimal shell that runs without Postgres):")
 	fmt.Fprintln(os.Stderr, "  --db / --no-db                PostgreSQL via dbx (postgres-only; go-common has no mysql path)")
 	fmt.Fprintln(os.Stderr, "  --redis / --no-redis          Redis via redisx")
-	fmt.Fprintln(os.Stderr, "  --thirdcall / --no-thirdcall  thirdcall demo placeholder")
+	fmt.Fprintln(os.Stderr, "  --thirdcall / --no-thirdcall  gid-service dependency (snowflake ID generator)")
 	fmt.Fprintln(os.Stderr, "  --example / --no-example      CRUD starter domain (implies --db)")
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "  --force                       overwrite target if it exists (used for regenerating demo-service)")
@@ -258,10 +258,12 @@ var skipRules = map[string]string{
 	"internal/store/models/{{.Name}}.go":      "Example",
 	"internal/store/dal/{{.Name}}.go":         "Example",
 	"pkg/xcodes/{{.Name}}.go":                 "Example",
-	// Thirdcall-only.
-	"pkg/thirdcall/demo_service.go":            "Thirdcall",
-	"internal/thirdcall/demoservice/grpc.go":   "Thirdcall",
-	"internal/thirdcall/demoservice/module.go": "Thirdcall",
+	// Thirdcall-only. The GIDService interface + backends are all internal
+	// (internal/thirdcall/gid_service/) — there is no pkg/thirdcall/. The grpc
+	// dial is a commented sketch; module mode exercises the real gid-service dep.
+	"internal/thirdcall/gid_service/gid.go":    "Thirdcall",
+	"internal/thirdcall/gid_service/grpc.go":   "Thirdcall",
+	"internal/thirdcall/gid_service/module.go": "Thirdcall",
 }
 
 // skipFor reports whether the template at rawRel should be skipped for spec.

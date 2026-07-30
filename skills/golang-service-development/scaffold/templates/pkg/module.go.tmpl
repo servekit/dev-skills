@@ -32,7 +32,7 @@ var _ {{.Name}}v1.{{.Pascal}}ServiceServer = (*Handler)(nil)
 //	defer hdl.Stop()                                    // closes owned resources
 //	{{.Name}}, err := hdl.Get{{.Pascal}}(ctx, &{{.Name}}v1.Get{{.Pascal}}Request{Id: 1})
 //
-// Resources injected via option.WithDB / WithDemoService are NOT owned by the
+// Resources injected via option.WithDB / WithGIDHandler are NOT owned by the
 // service — parent process keeps ownership and is responsible for cleanup.
 // Only resources the service creates from cfg are tracked by the internal
 // lifecycle.Manager and stopped on Stop.
