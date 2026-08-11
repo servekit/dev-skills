@@ -1,0 +1,14 @@
+{
+  "name": "dev-skills",
+  "plugins": [
+    {
+      "name": "dev-skills",
+      "source": ".",
+      "description": "Domain development skills (Go, Protobuf/Buf, GORM/cli, OPA/Rego, Rust, TypeScript, Docker packaging) auto-loaded as ZCode Skills, with a SessionStart hook that injects routing guidance.",
+      "version": "0.1.0",
+      "author": { "name": "only" },
+      "category": "development",
+      "keywords": ["skills", "go", "protobuf", "buf", "gorm", "opa", "rego", "rust", "typescript", "docker"]
+    }
+  ]
+}

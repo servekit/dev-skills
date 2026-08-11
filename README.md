@@ -2,13 +2,14 @@
 
 一套面向 AI 编码 agent 的领域开发 Skills —— Go / Rust / TypeScript / OPA / Protobuf 等编码规范,外加基于 [`github.com/servekit/go-common`](https://github.com/servekit/go-common) 的服务工具链。
 
-每个 Skill 是一份带触发条件的规范文档,agent 自动发现并按场景加载。当前以 Claude Code 插件形式交付,后续会扩展到其它 agent(见 [Quickstart](#quickstart))。
+每个 Skill 是一份带触发条件的规范文档,agent 自动发现并按场景加载。当前以 Claude Code 与 ZCode 插件形式交付,后续会扩展到其它 agent(见 [Quickstart](#quickstart))。
 
 ## Quickstart
 
 | Agent | 状态 |
 |-------|------|
 | Claude Code | ✅ 已支持 — [安装](#claude-code) |
+| ZCode | ✅ 已支持 — [安装](#zcode) |
 | Codex · Cursor · Gemini CLI · 其它 | 🚧 规划中 |
 
 ## How it works
@@ -18,15 +19,16 @@
 1. **自动发现(Discovery)** —— agent 扫描 `skills/*/SKILL.md`,靠 frontmatter 的 `name` + `description` 注册到目录、按场景匹配加载。新增 skill 无需任何注册声明。
 2. **强制使用(Forcing)** —— SessionStart hook 注入 `using-dev-skills` 路由引导文(何时用哪个 skill)+ 一份运行时生成的 skills 索引。索引从 frontmatter 自动生成,新增 skill 无需改 hook。
 
-> 第 1 层(自动发现)与 agent 无关;第 2 层(注入 / 强制)是 agent 特定的适配 —— Claude Code 下由 `hooks/session-start` 实现,换 agent 只换这一层。
+> 第 1 层(自动发现)与 agent 无关;第 2 层(注入 / 强制)看似 agent 特定,实际 **Claude Code 和 ZCode 共用同一个 `hooks/session-start` 脚本** —— ZCode 兼容 `${CLAUDE_PLUGIN_ROOT}` 变量、`SessionStart` 事件与 `startup|clear|compact` matcher,以及 `hookSpecificOutput.additionalContext` 输出契约,所以 hook 零改动复用。
 
 项目布局:
 
 ```
 dev-skills/
 ├── .claude-plugin/        插件清单 + marketplace(Claude Code 交付形态)
+├── .zcode-plugin/         插件清单 + marketplace(ZCode 交付形态)
 ├── hooks/
-│   ├── hooks.json         SessionStart 注册
+│   ├── hooks.json         SessionStart 注册(Claude Code / ZCode 共用)
 │   └── session-start      注入路由引导文 + 自动索引 skills
 ├── skills/<name>/         每个 skill 一个目录,入口 SKILL.md
 └── README.md
@@ -44,6 +46,16 @@ dev-skills/
 ```
 
 新开会话后,SessionStart hook 自动注入路由引导文 + skills 索引。
+
+### ZCode
+
+```
+# 在 ZCode 客户端:Settings → Plugin Management → Discover → 点 + 添加 GitHub 仓库
+servekit/dev-skills
+# 然后在 Discover 列表里找到 dev-skills,点 Get 安装
+```
+
+新开会话后,SessionStart hook 自动注入路由引导文 + skills 索引(与 Claude Code 行为一致 —— 同一个 `hooks/session-start` 脚本,ZCode 零改动复用)。
 
 > 更多 agent 的适配在路上。dev-skills 的 skills 是与 agent 无关的 Markdown —— 为一个新 agent 提供支持,只需补一层「自动发现 + 注入」的适配(参考 `hooks/`)。
 

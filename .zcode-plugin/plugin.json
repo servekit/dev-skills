@@ -1,0 +1,8 @@
+{
+  "name": "dev-skills",
+  "version": "0.1.0",
+  "description": "Domain development skills for ZCode — Go, Rust, TypeScript, OPA, Protobuf standards plus a go-common service toolchain. Auto-loads as Skills; a SessionStart hook injects a routing guide and forces their use.",
+  "author": { "name": "only" },
+  "license": "MIT",
+  "skills": "skills"
+}

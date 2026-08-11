@@ -4,23 +4,26 @@ This file provides guidance to Claude Code when working in this repository.
 
 ## Project Overview
 
-**dev-skills** is a Claude Code **plugin** — a library of domain development Skills (Go, Rust, TypeScript, OPA, Protobuf standards + a go-common service toolchain). It is NOT a build-script repo. Skills are auto-discovered by Claude Code; a SessionStart hook injects a routing guide (`using-dev-skills`) plus an auto-generated skill index, forcing reliable skill usage. Modeled after [superpowers](https://github.com/obra/superpowers).
+**dev-skills** is a multi-agent **plugin** — a library of domain development Skills (Go, Rust, TypeScript, OPA, Protobuf standards + a go-common service toolchain). It is NOT a build-script repo. Skills are auto-discovered by Claude Code and ZCode; a SessionStart hook injects a routing guide (`using-dev-skills`) plus an auto-generated skill index, forcing reliable skill usage. Modeled after [superpowers](https://github.com/obra/superpowers).
 
 ## Architecture
 
 ```
-.claude-plugin/        plugin.json (manifest) + marketplace.json (local marketplace, source=".")
+.claude-plugin/        plugin.json (manifest) + marketplace.json (Claude Code delivery form)
+.zcode-plugin/         plugin.json (manifest) + marketplace.json (ZCode delivery form)
 hooks/
-  hooks.json           SessionStart hook registration (startup|clear|compact)
+  hooks.json           SessionStart hook registration (startup|clear|compact) — shared by both agents
   session-start        reads skills/using-dev-skills/SKILL.md (routing guide), appends an
                        auto-generated index of every skills/*/SKILL.md, outputs JSON
                        (hookSpecificOutput.additionalContext) → injected into each session
 skills/<name>/         one dir per skill; entry is SKILL.md (frontmatter: name + description)
 ```
 
-### How skills reach Claude Code (two layers)
+The two `.claude-plugin/` and `.zcode-plugin/` manifests are agent-specific delivery forms; they share the same `skills/` and `hooks/` trees. ZCode probes `.zcode-plugin/plugin.json` first (then falls back to `.claude-plugin/`), and its `${CLAUDE_PLUGIN_ROOT}` variable, `SessionStart` event, and `startup|clear|compact` matcher are all compatible with the existing hook — so `hooks/session-start` runs unchanged on both agents.
 
-1. **Discovery** — Claude Code auto-scans `skills/*/SKILL.md` for every enabled plugin. No per-skill declaration; the `name` + `description` frontmatter registers each skill in the model's catalog.
+### How skills reach Claude Code / ZCode (two layers)
+
+1. **Discovery** — each agent auto-scans `skills/*/SKILL.md` for every enabled plugin. No per-skill declaration; the `name` + `description` frontmatter registers each skill in the model's catalog.
 2. **Forcing** — the SessionStart hook injects `using-dev-skills` (the routing guide: when to use which skill) + an auto-index of all skills. The index is generated at runtime from SKILL.md frontmatter, so adding a skill needs no hook edit.
 
 ### Skills (two tiers + meta)
