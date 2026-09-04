@@ -11,10 +11,10 @@ require (
 	github.com/redis/go-redis/v9 v9.20.0
 	github.com/robfig/cron/v3 v3.0.1
 {{if .Thirdcall}}	github.com/servekit/gid-service v0.0.0-20260725050050-97fd4684b30d
-{{end}}	// go-common must include dbx/redisx.Connect and grpcx/clienttest (the
-// provider-contract stack). Bump to the merge commit's pseudo-version
-// when the unify-thirdcall branch lands, then make tidy here.
-github.com/servekit/go-common v0.0.0-20260803030322-51df8b4769d2
+{{end}}	// go-common carries the provider-contract stack (dbx/redisx.Connect,
+// grpcx/clienttest) and the security bumps; keep this in step with the
+// latest go-common main when the scaffold regenerates demo-service.
+github.com/servekit/go-common v0.0.0-20260904082059-4f99a93f1b32
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/genproto/googleapis/api v0.0.0-20260618152121-87f3d3e198d3
 	google.golang.org/grpc v1.81.1
