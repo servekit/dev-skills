@@ -73,12 +73,9 @@ type ThirdPartyConfig struct {
 //	    GID     *RemoteServiceConfig[*gidconfig.Config]
 //	    Payment *RemoteServiceConfig[*PaymentConfig]   // new
 //	}
-type RemoteServiceConfig[T any] struct {
-	// Mode is "grpc" or "module". "module" is the dev default — in-process.
-	Mode   string // "module" | "grpc"
-	Target string // gRPC addr, used when Mode == "grpc"
-	Config T      // in-process config, used when Mode == "module"
-}
+// RemoteServiceConfig is the shared third_party.<name> section shape,
+// aliased from go-common so Mode is the configx.Mode enum.
+type RemoteServiceConfig[T any] = configx.RemoteServiceConfig[T]
 	{{end}}
 // Load reads config from the standard configx locations:
 //   - /etc/{{.Module}}/config.yaml
