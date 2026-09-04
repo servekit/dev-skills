@@ -258,12 +258,6 @@ var skipRules = map[string]string{
 	"internal/store/models/{{.Name}}.go":      "Example",
 	"internal/store/dal/{{.Name}}.go":         "Example",
 	"pkg/xcodes/{{.Name}}.go":                 "Example",
-	// Thirdcall-only. The GIDService interface + backends are all internal
-	// (internal/thirdcall/gid_service/) — there is no pkg/thirdcall/. The grpc
-	// dial is a commented sketch; module mode exercises the real gid-service dep.
-	"internal/thirdcall/gid_service/gid.go":    "Thirdcall",
-	"internal/thirdcall/gid_service/grpc.go":   "Thirdcall",
-	"internal/thirdcall/gid_service/module.go": "Thirdcall",
 }
 
 // skipFor reports whether the template at rawRel should be skipped for spec.

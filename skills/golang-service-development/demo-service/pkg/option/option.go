@@ -30,13 +30,12 @@ package option
 
 import (
 	"github.com/robfig/cron/v3"
-	
+
 	"gorm.io/gorm"
-	
+
 	"github.com/redis/go-redis/v9"
-	
+
 	gidservice "github.com/servekit/gid-service/pkg"
-	
 )
 
 // Option mutates Options.
@@ -54,32 +53,32 @@ type Options struct {
 	// that rather than inject a separate *cron.Cron. This option exists for
 	// advanced cases (e.g., a parent process sharing its scheduler).
 	Cron *cron.Cron
-	
-	// GIDHandler is the raw gid-service Handler. The service wraps it internally
-	// into its GIDService (internal/thirdcall/gid_service); callers do not need
-	// to know that interface. If not set, the service builds one from
-	// cfg.ThirdParty.GID (module mode in-process, or grpc mode remote).
+
+	// GIDHandler is the raw gid-service Handler. When a parent embeds this
+	// service it can share its own instance here; the parent owns that
+	// Handler's lifecycle. If not set, the service resolves one from
+	// cfg.ThirdParty.GID via gidservice.Connect (module in-process, or grpc
+	// remote).
 	GIDHandler *gidservice.Handler
-	
 }
-	
+
 // WithDB injects an existing *gorm.DB. Caller owns its lifecycle.
 func WithDB(db *gorm.DB) Option { return func(o *Options) { o.DB = db } }
-	
+
 // WithRedis injects an existing *redis.Client. Caller owns its lifecycle.
 func WithRedis(c *redis.Client) Option { return func(o *Options) { o.Redis = c } }
-	
+
 // WithCron injects an existing *cron.Cron. Caller owns its lifecycle. Most
 // periodic-task needs should extend the scaffold's jobs.Scheduler instead.
 func WithCron(c *cron.Cron) Option { return func(o *Options) { o.Cron = c } }
-	
+
 // WithGIDHandler injects a raw gid-service Handler. Caller owns its lifecycle;
 // the service wraps it internally (NewModule) and does not Stop it. If not set,
 // the service builds one from cfg.ThirdParty.GID.
 func WithGIDHandler(h *gidservice.Handler) Option {
 	return func(o *Options) { o.GIDHandler = h }
 }
-	
+
 // Apply evaluates all options and returns the resolved Options. A nil field
 // means "not injected — service owns it and will Stop it on shutdown".
 func Apply(opts ...Option) Options {

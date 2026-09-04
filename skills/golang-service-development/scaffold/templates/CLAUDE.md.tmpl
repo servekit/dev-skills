@@ -13,7 +13,7 @@
 - **service 直接吃 proto**：业务方法接受/返回 proto 类型，proto↔model 转换发生在 store 边界。禁止 handler↔service 之间造中间 struct。
 - **一个领域 = 一个子包**：业务在 `internal/service/<domain>/`；`internal/service/service.go` 只放本体 + facade，不写业务，根目录没有 `<domain>.go` 单文件。
 - **枚举优先 proto**：枚举在 proto 里定义，DB 存 `int32`，用 proto 内置方法转换（`int32(x)` / `{{.Name}}v1.X(x)` / `.String()` / `_name` / `_value` map），**不要自己写 helper**（边界用例见 enum.md）。
-- **第三方调用（接口 internal）**：接口在 `internal/thirdcall/<name>/`（如 `gid_service`），不在 `pkg/`——**没有 `pkg/thirdcall/`**；`option` 注入 raw `*Handler`（`WithGIDHandler`），service 内部 wrap 成内部接口；切 grpc/module 只改 config（`third_party.<name>.mode`）。
+- **依赖其他服务（provider 契约）**：消费者持有 provider 定义的 `<svc>service.Service`（pkg 里嵌入生成 server 接口，双后端同形），初始化走 `<svc>service.Connect(ConnectConfig, mgr)`——grpc 拨号 + Stopper，module 自建 + mgr.Add；父进程注入的 Handler 由消费者自己的 option（`WithXxxHandler`）采纳（直返、不注册）。**没有 `internal/thirdcall/`**。切 grpc/module 只改 config（`third_party.<name>.mode`）。
 - **资源用 lifecycle.Manager**：不要 `ownX bool`；注入的资源（`WithX`）不注册，自建的注册到 mgr（close-only 资源用 Stopper；有 Start 的下游 Handler 用 `mgr.Add`）。
 - **加 RPC 四步**：proto 加方法 → `make proto` → handler 加委托 → `service.go` 加 facade → 子包加业务。
 - **scaffold 是 one-shot**：本服务已生成，后续演进手写，**绝不重跑** `new-service.sh`（会覆盖丢代码）。

@@ -78,4 +78,3 @@ func (h *Handler) DeleteDemo(ctx context.Context, req *demov1.DeleteDemoRequest)
 	}
 	return &emptypb.Empty{}, nil
 }
-

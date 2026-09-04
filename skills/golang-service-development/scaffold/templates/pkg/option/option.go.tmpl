@@ -55,10 +55,11 @@ type Options struct {
 	// advanced cases (e.g., a parent process sharing its scheduler).
 	Cron *cron.Cron
 	{{if .Thirdcall}}
-	// GIDHandler is the raw gid-service Handler. The service wraps it internally
-	// into its GIDService (internal/thirdcall/gid_service); callers do not need
-	// to know that interface. If not set, the service builds one from
-	// cfg.ThirdParty.GID (module mode in-process, or grpc mode remote).
+	// GIDHandler is the raw gid-service Handler. When a parent embeds this
+	// service it can share its own instance here; the parent owns that
+	// Handler's lifecycle. If not set, the service resolves one from
+	// cfg.ThirdParty.GID via gidservice.Connect (module in-process, or grpc
+	// remote).
 	GIDHandler *gidservice.Handler
 	{{end}}
 }

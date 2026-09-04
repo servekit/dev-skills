@@ -16,7 +16,6 @@ import (
 func AllModels() []any {
 	return []any{
 		&Demo{},
-		
 	}
 }
 

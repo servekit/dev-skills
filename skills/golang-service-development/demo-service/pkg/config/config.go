@@ -6,11 +6,11 @@
 package config
 
 import (
+	gidconfig "github.com/servekit/gid-service/pkg/config"
 	"github.com/servekit/go-common/configx"
 	"github.com/servekit/go-common/dbx"
-	"github.com/servekit/go-common/redisx"
 	"github.com/servekit/go-common/logging"
-	gidconfig "github.com/servekit/gid-service/pkg/config"
+	"github.com/servekit/go-common/redisx"
 )
 
 // serviceName identifies this binary in config file lookup (/etc/<name>) and
@@ -36,8 +36,8 @@ type Config struct {
 	Redis *redisx.Config
 	// ThirdParty groups third-party service settings (wired when --thirdcall).
 	ThirdParty *ThirdPartyConfig
-	Cron *CronConfig
-	Log  *logging.Config
+	Cron       *CronConfig
+	Log        *logging.Config
 }
 
 // ServerConfig holds gRPC and HTTP server addresses.
@@ -55,7 +55,7 @@ type CronConfig struct {
 	// Timezone for cron expression evaluation. Defaults to Asia/Shanghai.
 	Timezone string `default:"Asia/Shanghai"`
 }
-	
+
 // ThirdPartyConfig holds third-party service connection settings.
 type ThirdPartyConfig struct {
 	// GID is the gid-service dependency (snowflake ID generator). Mode selects
@@ -79,7 +79,7 @@ type RemoteServiceConfig[T any] struct {
 	Target string // gRPC addr, used when Mode == "grpc"
 	Config T      // in-process config, used when Mode == "module"
 }
-	
+
 // Load reads config from the standard configx locations:
 //   - /etc/demo-service/config.yaml
 //   - ./config.yaml

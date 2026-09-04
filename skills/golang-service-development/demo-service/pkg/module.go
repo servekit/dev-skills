@@ -53,4 +53,3 @@ func NewModule(cfg *config.Config, opts ...option.Option) (*Handler, error) {
 func Migrate(db *gorm.DB) error {
 	return handler.Migrate(db)
 }
-

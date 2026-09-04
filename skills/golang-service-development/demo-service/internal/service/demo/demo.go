@@ -24,19 +24,20 @@ import (
 	demov1 "demo-service/gen/demo/v1"
 	"demo-service/internal/store/dal"
 	"demo-service/internal/store/models"
-	gid_service "demo-service/internal/thirdcall/gid_service"
 	"demo-service/pkg/xcodes"
+	gidv1 "github.com/servekit/gid-service/gen/gid/v1"
+	gidservice "github.com/servekit/gid-service/pkg"
 )
 
 // Service is the demo domain service. Resources are injected at
 // construction; the subpackage does not manage their lifecycle.
 type Service struct {
-	db *gorm.DB
-	gid gid_service.GIDService
+	db  *gorm.DB
+	gid gidservice.Service
 }
 
 // New constructs a Demo domain service with injected resources.
-func New(db *gorm.DB, gid gid_service.GIDService) *Service {
+func New(db *gorm.DB, gid gidservice.Service) *Service {
 	return &Service{db: db, gid: gid}
 }
 
@@ -53,11 +54,11 @@ func (s *Service) CreateDemo(ctx context.Context, req *demov1.CreateDemoRequest)
 		Status:      int32(req.GetStatus()),
 	}
 
-	id, err := s.gid.NextID(ctx)
+	idResp, err := s.gid.NextID(ctx, &gidv1.NextIDRequest{})
 	if err != nil {
 		return nil, xcodes.ErrDemoInternal.Wrapf(err, "generate demo id")
 	}
-	record.ID = id
+	record.ID = idResp.GetId()
 
 	if err := dal.CreateDemo(ctx, s.db, record); err != nil {
 		return nil, xcodes.ErrDemoInternal.Wrapf(err, "insert demo")

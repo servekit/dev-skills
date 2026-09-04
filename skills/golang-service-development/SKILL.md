@@ -1,6 +1,6 @@
 ---
 name: golang-service-development
-description: "MUST use when creating, scaffolding, OR evolving a Go service on the go-common stack (grpcx / configx / lifecycle) — adding an RPC, domain, field, or thirdcall to an EXISTING service counts as much as scaffolding a new one. For iteration on an existing service, do NOT re-run the scaffold. Read SKILL.md first; it routes to sub-documents (architecture / enum / jobs / scaffold) loaded on demand. The servekit naming convention is *-service, but the trigger is 'it's a service', not the suffix: a project named pay, order, or userapi that serves an API also qualifies. Do NOT wait for go.mod to exist — at creation time it does not exist yet, and the scaffold generates it. Also use on an existing service whose go.mod contains github.com/servekit/go-common. Trigger keywords: create/scaffold a Go service, grpc/grpc-gateway backend, -service project, pay/order/*-api backend, add RPC/endpoint/API, pkg/handler, internal/service, thirdcall, cmd/server, in-process module, lifecycle.Manager, proto enum to DB int."
+description: "MUST use when creating, scaffolding, OR evolving a Go service on the go-common stack (grpcx / configx / lifecycle) — adding an RPC, domain, field, or a service dependency to an EXISTING service counts as much as scaffolding a new one. For iteration on an existing service, do NOT re-run the scaffold. Read SKILL.md first; it routes to sub-documents (architecture / enum / jobs / scaffold) loaded on demand. The servekit naming convention is *-service, but the trigger is 'it's a service', not the suffix: a project named pay, order, or userapi that serves an API also qualifies. Do NOT wait for go.mod to exist — at creation time it does not exist yet, and the scaffold generates it. Also use on an existing service whose go.mod contains github.com/servekit/go-common. Trigger keywords: create/scaffold a Go service, grpc/grpc-gateway backend, -service project, pay/order/*-api backend, add RPC/endpoint/API, pkg/handler, internal/service, Service/Connect, thirdcall (legacy), cmd/server, in-process module, lifecycle.Manager, proto enum to DB int."
 ---
 
 # Go 微服务开发指南（入口）
@@ -100,7 +100,7 @@ make proto && make generate && go build ./...
 |---|---|
 | 持久化 / CRUD / 记录 | `--db`（PostgreSQL） |
 | 缓存 / 锁 / 限流 | `--redis` |
-| 调别的服务 | `--thirdcall` |
+| 调别的服务 | `--thirdcall`（gid-service 依赖，走 provider 的 Service+Connect） |
 | 要 CRUD 起点（隐含 `--db`） | `--example` |
 | 都不需要（健康检查 / 转发 / 计算） | 不传 = 最小空壳，无 Postgres 开箱跑 |
 
@@ -135,7 +135,7 @@ scaffold 生成的那套以服务名为名的代码（demo-service 里满眼的 
 | 示例 | 要删的文件 |
 |------|-----------|
 | 主业务 | `api/proto/<name>/`（service + message）· `pkg/handler/<name>.go` · `internal/service/<name>/` · `internal/store/{models,dal,generated}/<name>*` · `pkg/xcodes/<name>.go` · `store/models/register.go` 的注册行 |
-| thirdcall（gid-service 依赖） | `internal/thirdcall/gid_service/`（接口+实现，全 internal）· `option.go`（`GIDHandler` 字段 + `WithGIDHandler`）· `helper.go`（`resolveGID`）· `service.go`（`gid` 字段 + New 里 `resolveGID` 调用）· `config.go`（`ThirdParty.GID` + `gidconfig` import）· `config.example.yaml` + `.env.example`（`third_party.gid` 段）· `go.mod`（gid-service require）· **example 域**（`New(db, gid)`→`New(db)`、`Create` 去掉 `gid.NextID`、model ID tag 改回 `autoIncrement`） |
+| thirdcall（gid-service 依赖） | `helper.go`（`resolveGID` 守卫 + `gidservice.Connect`）· `service.go`（`gid gidservice.Service` 字段 + New 接线）· `config.go`（`ThirdParty.GID` + `gidconfig` import）· `config.example.yaml` + `.env.example`（`third_party.gid` 段）· `go.mod`（gid-service require）· example 域（`New(db, gid)`→`New(db)`、`Create` 去掉 `gid.NextID`、model ID tag 改回 `autoIncrement`）。pkg 侧的 `Service`/`Connect`/server 形态 `Client` **保留**——它们是你自己服务的 provider 契约 |
 | 框架引用（删主业务时同步） | `server.go`（`Register<name>` + Handler）· `client.go`（embed + `New<name>Client`）· `module.go`（编译断言） |
 
 删主业务后，proto 至少留一个空 `service <Name>Service {}` 才能编译。**示例不是生成产物，删了不能 `make` / scaffold 重生**。
@@ -163,11 +163,11 @@ scaffold 生成的那套以服务名为名的代码（demo-service 里满眼的 
 |------|------|---------|
 | **① 业务代码（你的主战场）** | `api/proto/` · `pkg/handler/` · `pkg/xcodes/` · `internal/service/` · `internal/store/{models,dal}` | 加 RPC / 领域就改这里。**含 scaffold 生成的那套以服务名为名的 baseline**（Create/Get 等）——它是你的起点，演进或删见 §2.1 |
 | **② 框架代码（基本不动）** | `cmd/server/` · `pkg/{server,module,client,config,option}.go` · `internal/jobs/` · `buf*.yaml` · `Makefile` · `.golangci.yml` | scaffold 生成。加 RPC 时**不用碰**；改启动 / 加定时任务时才动 |
-| **②′ thirdcall（gid-service，可删）** | `internal/thirdcall/gid_service/`（接口+实现）· `option.go` 的 `GIDHandler` 字段 + `WithGIDHandler` · `helper.go` 的 `resolveGID` · config 的 `ThirdParty.GID` 段 | 真实的 gid-service 依赖（example 域 `Create` 用 `gid.NextID`）。不需要就成套删（清单见 §2.1）；接口在 `internal/`，**没有 `pkg/thirdcall/`** |
+| **②′ thirdcall 接线（gid-service 依赖，可删）** | `helper.go` 的 `resolveGID` + `service.go` 的 `gid` 字段/接线 · `option.go` 的 `GIDHandler` 字段 + `WithGIDHandler` · config 的 `ThirdParty.GID` 段 | 真实的 gid-service 依赖（example 域 `Create` 用 `gid.NextID`）。依赖解析走 provider 的 `gidservice.Connect`，本服务**没有** `internal/thirdcall/`。不需要就成套删（清单见 §2.1） |
 | **③ 生成产物（可删重生）** | `gen/` · `api/swagger/` · `internal/store/generated/` | `make proto` / `make generate` 产出。**永远别手改**；改了 proto/model 后重跑生成覆盖即可，删了能重生 |
 | **④ 示例（不是你的代码）** | skill 仓库里的 `demo-service/` · `scaffold/` | 只在 skill 仓库存在，**不在你的服务里**。是参考实现 / 模板源，加接口时**别去读** |
 
-> **① ② ②′ 是手写起点，不是 ③ 那种能 `make` 重生的产物**——baseline（含 thirdcall 接线）删了找不回。
+> **① ② ②′ 是手写起点，不是 ③ 那种能 `make` 重生的产物**——baseline（含 gid 依赖接线）删了找不回。
 
 ---
 
@@ -187,7 +187,7 @@ scaffold 生成的那套以服务名为名的代码（demo-service 里满眼的 
 
 | 任务 | 读 |
 |------|-----|
-| 理解分层 / 目录布局 / 启动三件套 / thirdcall 双层 / option+lifecycle / 项目约定 / 新建服务验收清单 | `architecture.md` |
+| 理解分层 / 目录布局 / 启动三件套 / 服务间依赖（provider 契约 Service+Connect）/ option+lifecycle / 项目约定 / 新建服务验收清单 | `architecture.md` |
 | proto enum ↔ DB int 转换（几乎所有涉及枚举的场景） | `enum.md` |
 | 加后台定时任务（cron / 周期清理 / 心跳） | `jobs.md` |
 | 新建服务的详细用法 / 模板变量 / 改模板 / `--regen-demo` | `scaffold.md` |

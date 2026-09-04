@@ -28,7 +28,7 @@ import (
 	"{{.Module}}/internal/jobs"
 	"{{.Module}}/internal/version"
 	{{if .Example}}"{{.Module}}/internal/service/{{.Name}}"{{end}}
-	{{if .Thirdcall}}gid_service "{{.Module}}/internal/thirdcall/gid_service"
+	{{if .Thirdcall}}gidservice "github.com/servekit/gid-service/pkg"
 	{{end}}"{{.Module}}/pkg/config"
 	"{{.Module}}/pkg/option"
 
@@ -47,7 +47,7 @@ type Service struct {
 	mgr *lifecycle.Manager
 	{{if .DB}}db *gorm.DB
 	{{end}}{{if .Redis}}redis *redis.Client
-	{{end}}{{if .Thirdcall}}gid gid_service.GIDService
+	{{end}}{{if .Thirdcall}}gid gidservice.Service
 	{{end}}{{if .Example}}// One field per domain subpackage. Add fields here as new domains appear.
 	{{.Name}} *{{.Name}}.Service{{end}}
 

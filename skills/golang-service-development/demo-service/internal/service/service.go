@@ -20,17 +20,17 @@ import (
 	"errors"
 	"fmt"
 	"time"
-	
+
 	"github.com/redis/go-redis/v9"
-	
-	"gorm.io/gorm"
+
 	demov1 "demo-service/gen/demo/v1"
 	"demo-service/internal/jobs"
-	"demo-service/internal/version"
 	"demo-service/internal/service/demo"
-	gid_service "demo-service/internal/thirdcall/gid_service"
+	"demo-service/internal/version"
 	"demo-service/pkg/config"
 	"demo-service/pkg/option"
+	gidservice "github.com/servekit/gid-service/pkg"
+	"gorm.io/gorm"
 
 	"github.com/servekit/go-common/cronx"
 	"github.com/servekit/go-common/lifecycle"
@@ -43,11 +43,11 @@ import (
 // subpackages. Each domain lives in its own subpackage field
 // (demo *demo.Service); subpackages do NOT reference this struct.
 type Service struct {
-	cfg *config.Config
-	mgr *lifecycle.Manager
-	db *gorm.DB
+	cfg   *config.Config
+	mgr   *lifecycle.Manager
+	db    *gorm.DB
 	redis *redis.Client
-	gid gid_service.GIDService
+	gid   gidservice.Service
 	// One field per domain subpackage. Add fields here as new domains appear.
 	demo *demo.Service
 
@@ -67,7 +67,7 @@ type Service struct {
 func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 	o := option.Apply(opts...)
 	mgr := lifecycle.NewManager()
-	
+
 	db, err := resolveDB(&o, cfg, mgr)
 	if err != nil {
 		if cerr := mgr.Stop(); cerr != nil {
@@ -75,7 +75,7 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 		}
 		return nil, err
 	}
-	
+
 	redis, err := resolveRedis(&o, cfg, mgr)
 	if err != nil {
 		if cerr := mgr.Stop(); cerr != nil {
@@ -83,7 +83,7 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 		}
 		return nil, err
 	}
-	
+
 	gid, err := resolveGID(&o, cfg.ThirdParty.GID, mgr)
 	if err != nil {
 		if cerr := mgr.Stop(); cerr != nil {
@@ -91,17 +91,17 @@ func New(cfg *config.Config, opts ...option.Option) (*Service, error) {
 		}
 		return nil, err
 	}
-	
+
 	// jobs.Scheduler owns the cron instance; setupJobs builds it, registers
 	// it on mgr, and wires periodic jobs (empty by default — add jobs inside
 	// setupJobs as scheduler.AddFunc calls). See architecture.md (jobs.md).
 	svc := &Service{
-		cfg: cfg,
-		mgr: mgr,
-		db: db,
-		redis: redis,
-		gid: gid,
-		demo: demo.New(db, gid),
+		cfg:       cfg,
+		mgr:       mgr,
+		db:        db,
+		redis:     redis,
+		gid:       gid,
+		demo:      demo.New(db, gid),
 		startedAt: time.Now().UnixMilli(),
 	}
 
@@ -139,7 +139,7 @@ func (s *Service) Ping(ctx context.Context) (*demov1.Pong, error) {
 		StartedAt: s.startedAt,
 	}, nil
 }
-	
+
 // --- facade methods (one per RPC, delegate to subpackage) ---
 //
 // handler calls these; they are one-line delegations to the corresponding
@@ -166,7 +166,7 @@ func (s *Service) UpdateDemo(ctx context.Context, req *demov1.UpdateDemoRequest)
 func (s *Service) DeleteDemo(ctx context.Context, id int64) error {
 	return s.demo.DeleteDemo(ctx, id)
 }
-	
+
 // Resource resolve helpers (resolveDB / resolveRedis / resolveGID)
 // live in helper.go — extracted from this file to keep service.go focused on
 // the Service struct, New/Start/Stop/Ping, and the facade delegations.

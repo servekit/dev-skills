@@ -4,9 +4,11 @@ package service
 // extracted from service.go to keep that file focused on the Service struct,
 // New/Start/Stop/Ping, and the RPC facade delegations.
 //
-// Each resolve* returns a resource: an injected one (option.With…) is used
-// as-is with the caller owning its lifecycle; otherwise it is built from cfg
-// and registered with the lifecycle Manager, which starts and stops it.
+// Every dependency follows the platform's inject-or-build contract: an
+// injected one (option.With…) is used as-is with the caller owning its
+// lifecycle; otherwise it is built from cfg via the provider's Connect
+// (dbx/redisx for resources, the dependency's pkg.Connect for services),
+// which also registers its lifecycle with the Manager.
 {{if or .DB .Redis .Thirdcall}}
 import (
 	"fmt"
@@ -17,8 +19,6 @@ import (
 	{{end}}{{if .Thirdcall}}
 	gidservice "github.com/servekit/gid-service/pkg"
 	gidconfig "github.com/servekit/gid-service/pkg/config"
-
-	gid_service "{{.Module}}/internal/thirdcall/gid_service"
 	{{end}}
 	"{{.Module}}/pkg/config"
 	"{{.Module}}/pkg/option"
@@ -28,75 +28,36 @@ import (
 	"github.com/servekit/go-common/lifecycle"
 )
 {{end}}{{if .DB}}
-// resolveDB returns the DB to use. If injected via option.WithDB, ownership
-// stays with the caller and nothing is registered with mgr. If created from
-// cfg, a Stopper is registered so mgr.Stop closes the connection pool.
+// resolveDB returns the DB to use: an injected one as-is (caller owns
+// lifecycle), otherwise built from cfg with a Stopper registered on mgr via
+// dbx.Connect.
 func resolveDB(o *option.Options, cfg *config.Config, mgr *lifecycle.Manager) (*gorm.DB, error) {
-	if o.DB != nil {
-		return o.DB, nil
-	}
-	db, err := dbx.New(cfg.Database)
-	if err != nil {
-		return nil, fmt.Errorf("database: %w", err)
-	}
-	mgr.AddStopper("db", lifecycle.StopFunc(func() {
-		if sqlDB, e := db.DB(); e == nil && sqlDB != nil {
-			_ = sqlDB.Close()
-		}
-	}))
-	return db, nil
+	return dbx.Connect(cfg.Database, o.DB, mgr)
 }
 {{end}}{{if .Redis}}
-// resolveRedis returns the Redis client to use. If injected via option, ownership
-// stays with the caller. If created from cfg, a Stopper is registered so mgr.Stop
-// closes the client.
+// resolveRedis returns the Redis client to use: an injected one as-is
+// (caller owns lifecycle), otherwise built from cfg with a Stopper registered
+// on mgr via redisx.Connect.
 func resolveRedis(o *option.Options, cfg *config.Config, mgr *lifecycle.Manager) (*redis.Client, error) {
-	if o.Redis != nil {
-		return o.Redis, nil
-	}
-	rdb, err := redisx.New(cfg.Redis)
-	if err != nil {
-		return nil, fmt.Errorf("redis: %w", err)
-	}
-	mgr.AddStopper("redis", lifecycle.StopFunc(func() { _ = rdb.Close() }))
-	return rdb, nil
+	return redisx.Connect(cfg.Redis, o.Redis, mgr)
 }
 {{end}}{{if .Thirdcall}}
-// resolveGID returns the GIDService. grpc mode dials cfg.Target and registers a
-// stopper (the GIDService's Close drops the connection); module mode uses an
-// injected raw *gidservice.Handler (option.WithGIDHandler) when a parent embeds
-// this service (parent owns lifecycle, nothing registered), otherwise builds one
-// from cfg.Config (standalone) and registers the raw Handler with the Manager
-// via mgr.Add (it owns the Handler's Start/Stop). The GIDService interface is
-// internal (internal/thirdcall/gid_service).
-func resolveGID(o *option.Options, cfg *config.RemoteServiceConfig[*gidconfig.Config], mgr *lifecycle.Manager) (gid_service.GIDService, error) {
+// resolveGID returns the gid dependency. Construction delegates to
+// gidservice.Connect, which owns the mode switch and lifecycle registration;
+// only the adoption of a parent-injected Handler stays here — it reads this
+// service's own options and the parent owns that lifecycle.
+func resolveGID(o *option.Options, cfg *config.RemoteServiceConfig[*gidconfig.Config], mgr *lifecycle.Manager) (gidservice.Service, error) {
+	if o.GIDHandler != nil {
+		return o.GIDHandler, nil // injected → borrowed; parent owns lifecycle
+	}
 	if cfg == nil {
 		return nil, fmt.Errorf("third_party.gid: not configured")
 	}
-	switch cfg.Mode {
-	case "grpc":
-		gid, err := gid_service.NewGRPC(cfg.Target)
-		if err != nil {
-			return nil, fmt.Errorf("init gid-service: %w", err)
-		}
-		mgr.AddStopper("gid", lifecycle.StopFunc(func() { _ = gid.Close() }))
-		return gid, nil
-	case "module":
-		if o.GIDHandler != nil {
-			return gid_service.NewModule(o.GIDHandler), nil // injected → borrowed; parent owns lifecycle
-		}
-		if cfg.Config == nil {
-			return nil, fmt.Errorf("third_party.gid: module config required when no handler injected")
-		}
-		hdl, err := gidservice.NewModule(cfg.Config)
-		if err != nil {
-			return nil, fmt.Errorf("init gid-service: %w", err)
-		}
-		gid := gid_service.NewModule(hdl)
-		mgr.Add("gid", hdl)
-		return gid, nil
-	default:
-		return nil, fmt.Errorf("third_party.gid: unknown mode %q", cfg.Mode)
-	}
+	gid, _, err := gidservice.Connect(gidservice.ConnectConfig{
+		Mode:   cfg.Mode,
+		Target: cfg.Target,
+		Config: cfg.Config,
+	}, mgr)
+	return gid, err
 }
 {{end}}

@@ -61,7 +61,7 @@ skills/golang-service-development/
 |---|---|
 | `--db` | PostgreSQL：`store/{models,dal,generated}` + migrate 子命令 + resolveDB + compose postgres |
 | `--redis` | Redis：resolveRedis + config.Redis + compose redis |
-| `--thirdcall` | gid-service 依赖：`internal/thirdcall/gid_service/`（接口+grpc/module 实现）+ `option.WithGIDHandler` + config(`ThirdParty.GID`) + `resolveGID`(helper.go)；example 域用 `gid.NextID` 生成 ID |
+| `--thirdcall` | gid-service 依赖：`resolveGID`（helper.go，守卫 + `gidservice.Connect`）+ `option.WithGIDHandler` + config(`ThirdParty.GID`)；example 域用 `gid.NextID` 生成 ID |
 | `--example` | CRUD 起点领域（`{Name}` 的 Create/Get/List/Update/Delete），隐含 `--db` |
 | `--no-X` | 关闭（如 `--db --no-redis`）；多个 flag 后者胜出 |
 

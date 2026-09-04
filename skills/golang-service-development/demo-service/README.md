@@ -56,4 +56,4 @@ curl -X POST http://localhost:8080/v1/demos \
   -d '{"name":"hi"}'
 ```
 
-> 架构规范（分层、枚举、thirdcall、lifecycle 等）见 `CLAUDE.md`。
+> 架构规范（分层、枚举、服务间依赖、lifecycle 等）见 `CLAUDE.md`。

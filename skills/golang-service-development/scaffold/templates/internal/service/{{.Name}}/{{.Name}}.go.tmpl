@@ -24,7 +24,8 @@ import (
 	{{.Name}}v1 "{{.Module}}/gen/{{.Name}}/v1"
 	"{{.Module}}/internal/store/dal"
 	"{{.Module}}/internal/store/models"{{if .Thirdcall}}
-	gid_service "{{.Module}}/internal/thirdcall/gid_service"{{end}}
+	gidv1 "github.com/servekit/gid-service/gen/gid/v1"
+	gidservice "github.com/servekit/gid-service/pkg"{{end}}
 	"{{.Module}}/pkg/xcodes"
 )
 
@@ -32,11 +33,11 @@ import (
 // construction; the subpackage does not manage their lifecycle.
 type Service struct {
 	db *gorm.DB{{if .Thirdcall}}
-	gid gid_service.GIDService{{end}}
+	gid gidservice.Service{{end}}
 }
 
 // New constructs a {{.Pascal}} domain service with injected resources.
-func New(db *gorm.DB{{if .Thirdcall}}, gid gid_service.GIDService{{end}}) *Service {
+func New(db *gorm.DB{{if .Thirdcall}}, gid gidservice.Service{{end}}) *Service {
 	return &Service{db: db{{if .Thirdcall}}, gid: gid{{end}}}
 }
 
@@ -54,11 +55,11 @@ func (s *Service) Create{{.Pascal}}(ctx context.Context, req *{{.Name}}v1.Create
 		Status:      int32(req.GetStatus()),
 	}{{if .Thirdcall}}
 
-	id, err := s.gid.NextID(ctx)
+	idResp, err := s.gid.NextID(ctx, &gidv1.NextIDRequest{})
 	if err != nil {
 		return nil, xcodes.Err{{.Pascal}}Internal.Wrapf(err, "generate {{.Name}} id")
 	}
-	record.ID = id{{end}}
+	record.ID = idResp.GetId(){{end}}
 
 	if err := dal.Create{{.Pascal}}(ctx, s.db, record); err != nil {
 		return nil, xcodes.Err{{.Pascal}}Internal.Wrapf(err, "insert {{.Name}}")
