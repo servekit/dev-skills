@@ -24,7 +24,6 @@ import (
 	{{.Name}}v1 "{{.Module}}/gen/{{.Name}}/v1"
 	"{{.Module}}/internal/store/dal"
 	"{{.Module}}/internal/store/models"{{if .Thirdcall}}
-	gidv1 "github.com/servekit/gid-service/gen/gid/v1"
 	gidservice "github.com/servekit/gid-service/pkg"{{end}}
 	"{{.Module}}/pkg/xcodes"
 )
@@ -55,11 +54,11 @@ func (s *Service) Create{{.Pascal}}(ctx context.Context, req *{{.Name}}v1.Create
 		Status:      int32(req.GetStatus()),
 	}{{if .Thirdcall}}
 
-	idResp, err := s.gid.NextID(ctx, &gidv1.NextIDRequest{})
+	id, err := gidservice.NextID(ctx, s.gid)
 	if err != nil {
 		return nil, xcodes.Err{{.Pascal}}Internal.Wrapf(err, "generate {{.Name}} id")
 	}
-	record.ID = idResp.GetId(){{end}}
+	record.ID = id{{end}}
 
 	if err := dal.Create{{.Pascal}}(ctx, s.db, record); err != nil {
 		return nil, xcodes.Err{{.Pascal}}Internal.Wrapf(err, "insert {{.Name}}")

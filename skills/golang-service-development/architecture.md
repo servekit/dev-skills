@@ -419,7 +419,7 @@ func resolveGID(o *option.Options, cfg *config.RemoteServiceConfig[*gidconfig.Co
 }
 ```
 
-领域子包持有 `gidservice.Service`（provider 定义的类型，消费者代码里没有 `...Server` 字样、不 import provider 的 gen 包）。测试桩嵌 `gidv1.UnimplementedGidServiceServer` 只 override 用到的方法。`NextID(ctx) (int64, error)` 这类人体工学用一个小 helper 保留（`internal/service/common` 的 `common.NextID(ctx, gid)`）。
+领域子包持有 `gidservice.Service`（provider 定义的类型，消费者代码里没有 `...Server` 字样、不 import provider 的 gen 包）。测试桩嵌 `gidv1.UnimplementedGidServiceServer` 只 override 用到的方法。`NextID(ctx) (int64, error)` 这类人体工学由 provider 随包发布（`gidservice.NextID(ctx, svc)`），全平台共享一份实现，消费者不再各写一个 helper。
 
 ### 聚合者（testkit 这类嵌入多个服务）
 

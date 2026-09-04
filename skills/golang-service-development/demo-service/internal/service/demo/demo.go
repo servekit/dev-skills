@@ -25,7 +25,6 @@ import (
 	"demo-service/internal/store/dal"
 	"demo-service/internal/store/models"
 	"demo-service/pkg/xcodes"
-	gidv1 "github.com/servekit/gid-service/gen/gid/v1"
 	gidservice "github.com/servekit/gid-service/pkg"
 )
 
@@ -54,11 +53,11 @@ func (s *Service) CreateDemo(ctx context.Context, req *demov1.CreateDemoRequest)
 		Status:      int32(req.GetStatus()),
 	}
 
-	idResp, err := s.gid.NextID(ctx, &gidv1.NextIDRequest{})
+	id, err := gidservice.NextID(ctx, s.gid)
 	if err != nil {
 		return nil, xcodes.ErrDemoInternal.Wrapf(err, "generate demo id")
 	}
-	record.ID = idResp.GetId()
+	record.ID = id
 
 	if err := dal.CreateDemo(ctx, s.db, record); err != nil {
 		return nil, xcodes.ErrDemoInternal.Wrapf(err, "insert demo")
