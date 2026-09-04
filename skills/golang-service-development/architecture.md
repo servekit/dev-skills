@@ -32,8 +32,11 @@ description: "Sub-document of golang-service-development skill. Loaded by SKILL.
 │   ├── handler/                # ★ proto service 的薄壳实现
 │   ├── option/                 # functional options（注入 raw *Handler，非内部接口）
 │   ├── xcodes/                 # 错误码（按域分文件）
-│   ├── client.go               # gRPC 客户端
-│   ├── module.go               # in-process 入口
+│   ├── client.go               # server 形态 gRPC 客户端（与 *Handler 同形）
+│   ├── module.go               # in-process 入口（Handler 别名 + NewModule）
+│   ├── service.go              # ★ provider 契约的统一类型（嵌入生成 server 接口）
+│   ├── connect.go              # ★ provider 契约的统一初始化（grpc/module + 守卫）
+│   ├── client_test.go          # 回环冒烟（桩服务端 + EveryUnary 走全部委托）
 │   └── server.go               # gRPC + gateway server
 ├── buf.yaml / buf.gen.yaml     # buf v2 配置
 ├── Makefile / Dockerfile / docker-compose.yaml / .golangci.yml / CLAUDE.md / README.md
@@ -391,7 +394,7 @@ func (c *Client) NextID(ctx context.Context, in *gidv1.NextIDRequest) (*gidv1.Ne
 
 // pkg/connect.go —— 统一初始化：grpc/module 两分支 + 生命周期注册
 type ConnectConfig struct {
-    Mode   string          // "grpc" | "module"（空 = module）
+    Mode   configx.Mode    // configx.ModeGRPC / ModeModule（ModeUnspecified = module）
     Target string          // grpc 拨号地址
     Config *config.Config  // module 模式配置
     Opts   []option.Option // module 模式资源注入（WithDB/WithRedis/WithXxxHandler 共享）
@@ -399,7 +402,7 @@ type ConnectConfig struct {
 func Connect(cfg ConnectConfig, mgr *lifecycle.Manager) (Service, *Handler, error)
 ```
 
-`*Handler`（module 后端）原生满足生成的 server 接口；`*Client`（grpc 后端）被改造成同形——所以**一个接口通吃两种后端**。`Connect` 的语义：grpc 拨号并注册 Stopper（关连接）；module 从 Config 自建并 `mgr.Add`（消费者驱动 Start/Stop）；返回的 `*Handler` 仅 module 模式非空，供聚合者向下游共享。
+`*Handler`（module 后端）原生满足生成的 server 接口；`*Client`（grpc 后端）被改造成同形——所以**一个接口通吃两种后端**。`Connect` 的语义：grpc 拨号并注册 Stopper（关连接）；module 从 Config 自建并 `mgr.Add`（消费者驱动 Start/Stop）；返回的 `*Handler` 仅 module 模式非空，供聚合者向下游共享。mode 用 `configx.Mode` 枚举（`RemoteServiceConfig[T]` 也由 configx 共享、服务侧别名）；module 分支带 `lifecycle.ModuleClaim` 守卫——同进程第二个活实例直接报错（指路 With*Handler 共享），Stop 释放槽位、停止后重建合法。
 
 ### 消费者侧（以依赖 gid 为例）
 
@@ -442,6 +445,8 @@ svc.message, msgRaw, err = messageservice.Connect(messageservice.ConnectConfig{
 - 注入优先的采纳（`if o.XxxHandler != nil`）留在**消费者**：它读的是消费者自己的 option，且父进程拥有该生命周期——provider 的 Connect 不收 injected 参数
 - `pkg/client.go` 的每 RPC 一行委托是**唯一手写同步点**：proto 加 RPC 后补一行，漏了则 grpc 模式对该 RPC 返回 `codes.Unimplemented`（兜底，不 panic）
 - 生成 client 接口的方法带 `...grpc.CallOption` 变参，`*Handler` 无法满足它——这就是 client.go 必须显式改写为 server 形态的原因，也是旧 thirdcall 包装器存在的根因
+- **ModuleClaim 守卫**：`Connect` 的 module 分支强制"每进程一个活模块实例"——漏接共享边在启动即报错而不是静默双实例；`NewModule` 直连不受管（测试自由）
+- **每 provider 必备回环冒烟**（`pkg/client_test.go`，脚手架自带）：桩服务端 + `clienttest.EveryUnary` 走全部委托——自递归/路由错误的委托会当场炸掉测试进程
 - **streaming 是已知边界**：server/client 接口对流式 RPC 结构性分叉，统一接口无法同时满足两者；出现流式 RPC 时在 provider 的 Client 里写泵转发适配（grpc-gateway 内部同款），仍集中在一处。当前全平台 unary
 - module 模式的进程内调用**不经过 gRPC 拦截器**（protovalidate / ErrorInterceptor 只在网络路径生效）——这是 in-process 的固有属性，需要校验就在聚合层边界做
 
@@ -624,6 +629,7 @@ grpcSrv := grpcx.New(
 - [ ] grpcurl 能 CreateDemo + GetDemo 跑通
 - [ ] curl HTTP gateway 也能跑通
 - [ ] in-process module 测试（`pkg.NewModule`）能跑通
+- [ ] 回环冒烟 `TestClient_GRPCRoundTrip` 通过（脚手架自带，改 client.go 后必看）
 - [ ] 每个 RPC 在 `service.go` 都有对应 facade 方法（一一对应）
 - [ ] 每个领域在 `internal/service/<domain>/` 子包，`internal/service/` 根目录只有 `service.go`，无 `<domain>.go` 单文件残留
 - [ ] 周期任务都在 `internal/jobs/` + `svc.setupJobs()` 内注册，无业务子包直接持有 `*cron.Cron`

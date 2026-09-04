@@ -210,7 +210,7 @@ demo-service/ 里**不要手改**——任何修改都会在下一次 `--regen-d
 - **架构约定**：`architecture.md`（模板生成的代码遵循的分层规则）
 - **同级子文档**：`enum.md`、`jobs.md`
 
-## 合并 unify-thirdcall 分支后的收尾清单
+## unify-thirdcall 迁移收尾（已完成，2026-09-04）
 
-- [ ] go-common 合并后，取合并提交的 pseudo-version，同步更新 `scaffold/templates/go.mod.tmpl` 与 `demo-service/go.mod`（模板里有注释标记）。各服务 go.mod 的版本升级在各服务合并 PR 里做。
-- [ ] 脚手架生成的代码依赖 go-common 的 `dbx/redisx.Connect` 与 `grpcx/clienttest`——发布前确认这些包在主干。
+- [x] go-common 已合并发布（dbx/redisx.Connect、grpcx/clienttest、lifecycle.ModuleClaim、configx.Mode 全在主干），`go.mod.tmpl` 与 demo 已 pin 到对应版本。
+- [x] 各服务 go.mod 已升级、go.work 全部移除——所有仓库 clone 即建。

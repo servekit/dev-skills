@@ -162,7 +162,7 @@ scaffold 生成的那套以服务名为名的代码（demo-service 里满眼的 
 | 类别 | 位置 | 怎么对待 |
 |------|------|---------|
 | **① 业务代码（你的主战场）** | `api/proto/` · `pkg/handler/` · `pkg/xcodes/` · `internal/service/` · `internal/store/{models,dal}` | 加 RPC / 领域就改这里。**含 scaffold 生成的那套以服务名为名的 baseline**（Create/Get 等）——它是你的起点，演进或删见 §2.1 |
-| **② 框架代码（基本不动）** | `cmd/server/` · `pkg/{server,module,client,config,option}.go` · `internal/jobs/` · `buf*.yaml` · `Makefile` · `.golangci.yml` | scaffold 生成。加 RPC 时**不用碰**；改启动 / 加定时任务时才动 |
+| **② 框架代码（基本不动）** | `cmd/server/` · `pkg/{server,module,service,connect,client,client_test,config,option}.go` · `internal/jobs/` · `buf*.yaml` · `Makefile` · `.golangci.yml` | scaffold 生成。加 RPC 时**不用碰**；改启动 / 加定时任务时才动 |
 | **②′ thirdcall 接线（gid-service 依赖，可删）** | `helper.go` 的 `resolveGID` + `service.go` 的 `gid` 字段/接线 · `option.go` 的 `GIDHandler` 字段 + `WithGIDHandler` · config 的 `ThirdParty.GID` 段 | 真实的 gid-service 依赖（example 域 `Create` 用 `gid.NextID`）。依赖解析走 provider 的 `gidservice.Connect`，本服务**没有** `internal/thirdcall/`。不需要就成套删（清单见 §2.1） |
 | **③ 生成产物（可删重生）** | `gen/` · `api/swagger/` · `internal/store/generated/` | `make proto` / `make generate` 产出。**永远别手改**；改了 proto/model 后重跑生成覆盖即可，删了能重生 |
 | **④ 示例（不是你的代码）** | skill 仓库里的 `demo-service/` · `scaffold/` | 只在 skill 仓库存在，**不在你的服务里**。是参考实现 / 模板源，加接口时**别去读** |
